@@ -9,15 +9,19 @@ class Knob
 public:
     // row to access for knob rotation
     uint8_t rotationRow;
+    uint8_t buttonRow;
     int8_t lowerLimit;
     int8_t upperLimit;
     uint8_t prevBit0 = 0;
     uint8_t prevBit1 = 0;
     int8_t knobChange = 0;
 
-    int aAddr;
-    int bAddr;
+    int aRotationAddr;
+    int bRotationAddr;
+
+    int buttonAddr;
     volatile int8_t knobRotation = 0;
+    volatile int8_t knobButton = 0;
 
     Knob(uint8_t id, int8_t minVal = 0, int8_t maxVal = 16);
     /*
@@ -55,6 +59,18 @@ public:
      * Atomically loads the global knobRotation to prevent synchronisation erros
      *
      * :return: current value of global knobRotation
+     */
+
+    void updateButtonValue();
+    /*
+     * Obtains readings from knob button and updates global knob button variable
+     */
+
+    int getButton();
+    /*
+     * Atomically loads the global knobButton to prevent synchronisation erros
+     *
+     * :return: current value of global knobButton, 1 is button is not pressed, 0 is button is pressed
      */
 };
 
