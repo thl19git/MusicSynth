@@ -1,4 +1,5 @@
 #include <U8g2lib.h>
+#include <ES_CAN.h>
 #include "knob.h"
 #include "main.h"
 
@@ -6,7 +7,7 @@
 volatile uint32_t keyArray[7];
 
 // Notes
-std::string notes[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "nan"};
+std::string notes[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 std::string note; // should be volatile
 
 // Step sizes
@@ -14,8 +15,21 @@ const int32_t stepSizes[] = {51076056, 54113197, 57330935, 60740010, 64351798, 6
 /* const int32_t stepSizes[] = {51076056.67, 54113197.05, 57330935.19, 60740010, 64351798.95, 68178356.04, 72232452.06, 76527617.17, 81078186.09, 85899345.92, 91007186.83, 96418755.77};*/
 volatile int32_t currentStepSize;
 
+// CAN network
+uint8_t RX_Message[8] = {0};
+QueueHandle_t msgInQ;
+QueueHandle_t msgOutQ;
+volatile int8_t fromMine = 1;
+
+// Knobs
+Knob knob3(0);
+Knob knob1(1);
+Knob knob2(2);
+Knob knob0(3);
+
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
+SemaphoreHandle_t CAN_TX_Semaphore;
 
 // Display driver object
 U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
@@ -114,10 +128,28 @@ void cpyKeyArray(volatile uint32_t localKeyArray[7])
   xSemaphoreGive(keyArrayMutex);
 }
 
-Knob knob3(3);
-Knob knob1(1);
-Knob knob2(2);
-Knob knob0(0);
+/* ####################### */
+/* ###### Interupts ###### */
+/* ####################### */
+
+void CAN_RX_ISR(void)
+/*
+ * TODO
+ */
+{
+  uint8_t RX_MESSAGE_ISR[8];
+  uint32_t ID;
+  CAN_RX(ID, RX_MESSAGE_ISR);
+  xQueueSendFromISR(msgInQ, RX_MESSAGE_ISR, NULL);
+}
+
+void CAN_TX_ISR(void)
+/*
+ * TODO
+ */
+{
+  xSemaphoreGiveFromISR(CAN_TX_Semaphore, NULL);
+}
 
 void sampleISR()
 /*
@@ -138,6 +170,94 @@ void sampleISR()
   analogWrite(OUTR_PIN, Vout + 128);
 }
 
+void findKeyChanges(volatile uint32_t localKeyArray[7])
+/*
+ * TODO
+ */
+{
+  xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
+  uint8_t TX_Message[8];
+  TX_Message[1] = 3; // set the octave
+
+  for (uint8_t i = 0; i < 3; i++)
+  {
+    uint8_t keys = localKeyArray[i];
+    uint8_t oldKeys = keyArray[i];
+    uint8_t changes = keys ^ oldKeys;
+
+    if (changes)
+    {
+      Serial.println("Detected change");
+    }
+
+    if (changes & 0b0001)
+    {
+      TX_Message[2] = 4 * i;
+      if (oldKeys & 0b0001)
+      {
+        TX_Message[0] = 'P';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+      else
+      {
+        TX_Message[0] = 'R';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+    }
+    else if (changes & 0b0010)
+    {
+      TX_Message[2] = 4 * i + 1;
+      if (oldKeys & 0b0010)
+      {
+        TX_Message[0] = 'P';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+      else
+      {
+        TX_Message[0] = 'R';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+    }
+    else if (changes & 0b0100)
+    {
+      TX_Message[2] = 4 * i + 2;
+      if (oldKeys & 0b0100)
+      {
+        TX_Message[0] = 'P';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+      else
+      {
+        TX_Message[0] = 'R';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+    }
+    else if (changes & 0b1000)
+    {
+      TX_Message[2] = 4 * i + 3;
+      if (oldKeys & 0b1000)
+      {
+        TX_Message[0] = 'P';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+      else
+      {
+        TX_Message[0] = 'R';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        break;
+      }
+    }
+  }
+  xSemaphoreGive(keyArrayMutex);
+}
+
 void scanKeysTask(void *pvParameters)
 /*
  * Function to be run on its own thread that:
@@ -148,54 +268,66 @@ void scanKeysTask(void *pvParameters)
  * :param pvParameters: Thread parameter information
  */
 {
-  // Initiation interval
   const TickType_t xFrequency = 20 / portTICK_PERIOD_MS;
-
-  // Tick count of last initiation
   TickType_t xLastWakeTime = xTaskGetTickCount();
-
-  // Local variables for temporary storage
   volatile uint32_t localKeyArray[7];
   static uint32_t localCurrentStepSize;
   uint32_t indx;
-
+  uint8_t prevBit0 = 0;
+  uint8_t prevBit1 = 0;
   while (1)
   {
-    // Blocking call
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
-
-    // Looping through keys
-    for (uint8_t i = 0; i < 3; i++)
+    for (uint8_t i = 0; i < 4; i++)
     {
       setRow(i);
       delayMicroseconds(3);
       uint8_t keys = readCols();
       localKeyArray[i] = keys;
-      if (keys != 0xF)
-      {
-        indx = (i * 4) + getIndx(keys);
-        localCurrentStepSize = stepSizes[indx];
-        note = notes[indx];
-        break;
-      }
-      else
-      {
-        localCurrentStepSize = 0;
-        note = "";
-      }
     }
-
-    // atomically storing step size
-    __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
-
-    // updating knob values, synchronisation issues delt with within class funciton
-    knob3.updateRotationValue();
-    knob1.updateRotationValue();
-    knob0.updateRotationValue();
-    knob2.updateRotationValue();
-
-    // updating global key values
+    // findKeyChanges(localKeyArray);
     cpyKeyArray(localKeyArray);
+
+    if (fromMine)
+    {
+      for (uint8_t i = 0; i < 3; i++)
+      {
+        uint8_t keys = localKeyArray[i];
+        if (~keys & 0b0001)
+        {
+          localCurrentStepSize = stepSizes[i * 4];
+          note = notes[i * 4];
+          break;
+        }
+        else if (~keys & 0b0010)
+        {
+          localCurrentStepSize = stepSizes[i * 4 + 1];
+          note = notes[i * 4 + 1];
+          break;
+        }
+        else if (~keys & 0b0100)
+        {
+          localCurrentStepSize = stepSizes[i * 4 + 2];
+          note = notes[i * 4 + 2];
+          break;
+        }
+        else if (~keys & 0b1000)
+        {
+          localCurrentStepSize = stepSizes[i * 4 + 3];
+          note = notes[i * 4 + 3];
+          break;
+        }
+        else
+        {
+          localCurrentStepSize = 0;
+          note = "";
+        }
+      }
+      // currentStepSize = localCurrentStepSize;
+      __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+
+      knob3.updateRotationValue();
+    }
   }
 }
 
@@ -256,30 +388,75 @@ void displayUpdateTask(void *pvParameters)
   }
 }
 
+void CAN_TX_Task(void *pvParameters)
+{
+  uint8_t msgOut[8];
+  while (1)
+  {
+    xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
+    xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
+    CAN_TX(0x123, msgOut);
+    Serial.println("Sent a message");
+  }
+}
+
+void decodeTask(void *pvParameters)
+{
+  while (1)
+  {
+    xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
+    Serial.println("Received message");
+    uint32_t localCurrentStepSize;
+    uint8_t action = RX_Message[0];
+    uint8_t octave = RX_Message[1];
+    uint8_t note = RX_Message[2];
+    if (action == 0x50)
+    {
+      // Press
+      Serial.println("Key pressed");
+      localCurrentStepSize = stepSizes[note];
+      fromMine = 0;
+      if (octave > 4)
+      {
+        localCurrentStepSize = localCurrentStepSize << (octave - 4);
+      }
+      else
+      {
+        localCurrentStepSize = localCurrentStepSize >> (4 - octave);
+      }
+    }
+    else
+    {
+      // Release
+      Serial.println("Key released");
+      localCurrentStepSize = 0;
+      fromMine = 1;
+    }
+    __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+  }
+}
+
 /* --- setup and loop ---*/
 
 void setup()
 {
-  ////// put your setup code here, to run once: //////
+  // put your setup code here, to run once:
 
-  // Setting up Mutex
   keyArrayMutex = xSemaphoreCreateMutex();
+  CAN_TX_Semaphore = xSemaphoreCreateCounting(3, 3);
 
-  // Timer to trigger interupt that will call sampleISR()
   TIM_TypeDef *Instance = TIM1;
   HardwareTimer *sampleTimer = new HardwareTimer(Instance);
 
-  // Thread initilisation for scanning and updating keys and knobs
   TaskHandle_t scanKeysHandle = NULL;
   xTaskCreate(
       scanKeysTask,     /* Function that implements the task */
       "scanKeys",       /* Text name for the task */
       64,               /* Stack size in words, not bytes */
       NULL,             /* Parameter passed into the task */
-      2,                /* Task priority */
+      4,                /* Task priority */
       &scanKeysHandle); /* Pointer to store the task handle */
 
-  // Thread initilisation for updating the screen info
   TaskHandle_t displayUpdateTaskHandle = NULL;
   xTaskCreate(
       displayUpdateTask,         /* Function that implements the task */
@@ -288,6 +465,24 @@ void setup()
       NULL,                      /* Parameter passed into the task */
       1,                         /* Task priority */
       &displayUpdateTaskHandle); /* Pointer to store the task handle */
+
+  TaskHandle_t decodeTaskHandle = NULL;
+  xTaskCreate(
+      decodeTask,         /* Function that implements the task */
+      "decode",           /* Text name for the task */
+      64,                 /* Stack size in words, not bytes */
+      NULL,               /* Parameter passed into the task */
+      3,                  /* Task priority */
+      &decodeTaskHandle); /* Pointer to store the task handle */
+
+  TaskHandle_t CAN_TX_TaskHandle = NULL;
+  xTaskCreate(
+      CAN_TX_Task,         /* Function that implements the task */
+      "CAN_TX",            /* Text name for the task */
+      256,                 /* Stack size in words, not bytes */
+      NULL,                /* Parameter passed into the task */
+      2,                   /* Task priority */
+      &CAN_TX_TaskHandle); /* Pointer to store the task handle */
 
   sampleTimer->setOverflow(22000, HERTZ_FORMAT);
   sampleTimer->attachInterrupt(sampleISR);
@@ -320,7 +515,16 @@ void setup()
   Serial.begin(9600);
   Serial.println("Hello World");
 
-  // starting scheduler
+  msgInQ = xQueueCreate(36, 8);
+  msgOutQ = xQueueCreate(36, 8);
+
+  CAN_Init(false);
+  setCANFilter(0x123, 0x7ff);
+  CAN_RegisterRX_ISR(CAN_RX_ISR);
+  CAN_RegisterTX_ISR(CAN_TX_ISR);
+
+  CAN_Start();
+
   vTaskStartScheduler();
 }
 

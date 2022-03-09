@@ -2,7 +2,6 @@
 #include <Arduino.h>
 #include <string>
 #include <STM32FreeRTOS.h>
-#include <ES_CAN.h>
 
 #ifndef MAIN_H
 #define MAIN_H
@@ -70,12 +69,6 @@ void cpyKeyArray(volatile uint32_t localKeyArray[7]);
  * :param localKeyArray: array locally created in the scanKeysTask used to temporarlity store key values
  */
 
-void sampleISR();
-/*
- * Function that gets called by an interrupt
- * Updates phase accumulator, sets correct volume and sets the analogue output voltage at each sample interval
- */
-
 void scanKeysTask(void *pvParameters);
 /*
  * Function to be run on its own thread that:
@@ -93,6 +86,16 @@ void displayUpdateTask(void *pvParameters);
  *   prints relevant data on screen
  *
  * :param pvParameters: Thread parameter information
+ */
+
+/* ####################### */
+/* ###### Interupts ###### */
+/* ####################### */
+
+void sampleISR();
+/*
+ * Function that gets called by an interrupt
+ * Updates phase accumulator, sets correct volume and sets the analogue output voltage at each sample interval
  */
 
 #endif
