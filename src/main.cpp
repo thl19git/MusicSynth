@@ -327,6 +327,7 @@ void scanKeysTask(void *pvParameters)
       __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
 
       knob3.updateRotationValue();
+      knob3.updateButtonValue();
     }
   }
 }
@@ -380,6 +381,8 @@ void displayUpdateTask(void *pvParameters)
     u8g2.print(knob3.getRotation());
 
     u8g2.drawStr(2, 30, note.c_str()); // write something to the internal memory
+    u8g2.setCursor(40, 30);
+    u8g2.print(knob3.getButton());
 
     u8g2.sendBuffer(); // transfer internal memory to the display
 
