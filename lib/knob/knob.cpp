@@ -109,49 +109,49 @@ int8_t Knob::calculateAndAssignval(uint8_t prevBit0, uint8_t prevBit1, uint8_t b
     {
         if ((bit0 == 0) & (bit1 == 1))
         {
-            return -2;
+            return -1;
         }
         else if ((bit0 == 1) & (bit1 == 0))
         {
-            return +2;
+            return +1;
         }
     }
     else if ((prevBit0 == 0) & (prevBit1 == 1))
     {
         if ((bit0 == 0) & (bit1 == 0))
         {
-            return +2;
+            return +1;
         }
         else if ((bit0 == 1) & (bit1 == 1))
         {
-            return -2;
+            return -1;
         }
     }
     else if ((prevBit0 == 1) & (prevBit1 == 0))
     {
         if ((bit0 == 0) & (bit1 == 0))
         {
-            return -2;
+            return -1;
         }
         else if ((bit0 == 1) & (bit1 == 1))
         {
-            return +2;
+            return +1;
         }
     }
     else if ((prevBit0 == 1) & (prevBit1 == 1))
     {
         if ((bit0 == 0) & (bit1 == 1))
         {
-            return +2;
+            return +1;
         }
         else if ((bit0 == 1) & (bit1 == 0))
         {
-            return -2;
+            return -1;
         }
     }
     else
     {
-        return prevStep;
+        return prevStep * 2;
     }
     return 0;
 }

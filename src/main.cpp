@@ -22,10 +22,10 @@ QueueHandle_t msgOutQ;
 volatile int8_t fromMine = 1;
 
 // Knobs
-Knob knob3(0);
+Knob knob0(0);
 Knob knob1(1);
 Knob knob2(2);
-Knob knob0(3);
+Knob knob3(3, 0, 16);
 
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
@@ -164,7 +164,7 @@ void sampleISR()
   int32_t Vout = phaseAcc >> 24;
 
   // Setting volume TODO: adjust volume limits using knob3.max and min
-  Vout = Vout >> (8 - knob3.knobRotation / 2);
+  Vout = Vout >> (8 - knob3.getRotation() / 2);
 
   // seting analogue output voltage
   analogWrite(OUTR_PIN, Vout + 128);
@@ -375,10 +375,10 @@ void displayUpdateTask(void *pvParameters)
     u8g2.print(localKeyArray[0], HEX);
     u8g2.print(localKeyArray[1], HEX);
     u8g2.print(localKeyArray[2], HEX);
+    u8g2.setCursor(40, 20);
+    u8g2.print("  Vol: ");
     u8g2.print(knob3.getRotation());
-    u8g2.print(knob2.getRotation());
-    u8g2.print(knob1.getRotation());
-    u8g2.print(knob0.getRotation());
+
     u8g2.drawStr(2, 30, note.c_str()); // write something to the internal memory
 
     u8g2.sendBuffer(); // transfer internal memory to the display
