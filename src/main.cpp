@@ -19,12 +19,12 @@ volatile int32_t currentStepSize;
 uint8_t RX_Message[8] = {0};
 QueueHandle_t msgInQ;
 QueueHandle_t msgOutQ;
-volatile int8_t fromMine = 1;
+volatile uint8_t fromMine = 1;
 
 // Knobs
 Knob knob0(0);
 Knob knob1(1);
-Knob knob2(2);
+Knob knob2(2, 2, 14);
 Knob knob3(3, 0, 16);
 
 // Mutex
@@ -176,8 +176,8 @@ void findKeyChanges(volatile uint32_t localKeyArray[7])
  */
 {
   xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
-  uint8_t TX_Message[8];
-  TX_Message[1] = 3; // set the octave
+  uint8_t TX_Message[8];  
+  TX_Message[1] = knob2.getRotation()/2; // set the octave
 
   for (uint8_t i = 0; i < 3; i++)
   {
@@ -288,7 +288,9 @@ void scanKeysTask(void *pvParameters)
     // findKeyChanges(localKeyArray);
     cpyKeyArray(localKeyArray);
 
-    if (fromMine)
+    uint8_t localFromMine = __atomic_load_n(&fromMine, __ATOMIC_RELAXED);
+
+    if (localFromMine)
     {
       for (uint8_t i = 0; i < 3; i++)
       {
@@ -324,10 +326,21 @@ void scanKeysTask(void *pvParameters)
         }
       }
       // currentStepSize = localCurrentStepSize;
+      uint8_t octave = knob2.getRotation()/2;
+      if (octave > 4)
+      {
+        localCurrentStepSize = localCurrentStepSize << (octave - 4);
+      }
+      else
+      {
+        localCurrentStepSize = localCurrentStepSize >> (4 - octave);
+      }
       __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
 
       knob3.updateRotationValue();
       knob3.updateButtonValue();
+      knob2.updateRotationValue();
+      knob2.updateButtonValue();
     }
   }
 }
@@ -371,13 +384,15 @@ void displayUpdateTask(void *pvParameters)
     // Update display
     u8g2.clearBuffer();                   // clear the internal memory
     u8g2.setFont(u8g2_font_ncenB08_tr);   // choose a suitable font
-    u8g2.drawStr(2, 10, "Helllo World!"); // write something to the internal memory
+    u8g2.setCursor(2, 10);
+    u8g2.print("Octave: ");
+    u8g2.print(knob2.getRotation()/2);
     u8g2.setCursor(2, 20);
     u8g2.print(localKeyArray[0], HEX);
     u8g2.print(localKeyArray[1], HEX);
     u8g2.print(localKeyArray[2], HEX);
     u8g2.setCursor(40, 20);
-    u8g2.print("  Vol: ");
+    u8g2.print("Vol: ");
     u8g2.print(knob3.getRotation());
 
     u8g2.drawStr(2, 30, note.c_str()); // write something to the internal memory
@@ -413,12 +428,13 @@ void decodeTask(void *pvParameters)
     uint8_t action = RX_Message[0];
     uint8_t octave = RX_Message[1];
     uint8_t note = RX_Message[2];
+    uint8_t localFromMine;
     if (action == 0x50)
     {
       // Press
       Serial.println("Key pressed");
       localCurrentStepSize = stepSizes[note];
-      fromMine = 0;
+      localFromMine = 0;
       if (octave > 4)
       {
         localCurrentStepSize = localCurrentStepSize << (octave - 4);
@@ -433,9 +449,10 @@ void decodeTask(void *pvParameters)
       // Release
       Serial.println("Key released");
       localCurrentStepSize = 0;
-      fromMine = 1;
+      localFromMine = 1;
     }
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+    __atomic_store_n(&fromMine, localFromMine, __ATOMIC_RELAXED);
   }
 }
 
