@@ -462,36 +462,40 @@ void decodeTask(void *pvParameters)
   while (1)
   {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
-    Serial.println("Received message");
-    uint32_t localCurrentStepSize;
-    uint8_t action = RX_Message[0];
-    uint8_t octave = RX_Message[1];
-    uint8_t note = RX_Message[2];
-    uint8_t localFromMine;
-    if (action == 0x50)
+    uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
+    if (localReceiver)
     {
-      // Press
-      Serial.println("Key pressed");
-      localCurrentStepSize = stepSizes[note];
-      localFromMine = 0;
-      if (octave > 4)
+      Serial.println("Received message");
+      uint32_t localCurrentStepSize;
+      uint8_t action = RX_Message[0];
+      uint8_t octave = RX_Message[1];
+      uint8_t note = RX_Message[2];
+      uint8_t localFromMine;
+      if (action == 0x50)
       {
-        localCurrentStepSize = localCurrentStepSize << (octave - 4);
+        // Press
+        Serial.println("Key pressed");
+        localCurrentStepSize = stepSizes[note];
+        localFromMine = 0;
+        if (octave > 4)
+        {
+          localCurrentStepSize = localCurrentStepSize << (octave - 4);
+        }
+        else
+        {
+          localCurrentStepSize = localCurrentStepSize >> (4 - octave);
+        }
       }
       else
       {
-        localCurrentStepSize = localCurrentStepSize >> (4 - octave);
+        // Release
+        Serial.println("Key released");
+        localCurrentStepSize = 0;
+        localFromMine = 1;
       }
+      __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+      __atomic_store_n(&fromMine, localFromMine, __ATOMIC_RELAXED);
     }
-    else
-    {
-      // Release
-      Serial.println("Key released");
-      localCurrentStepSize = 0;
-      localFromMine = 1;
-    }
-    __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
-    __atomic_store_n(&fromMine, localFromMine, __ATOMIC_RELAXED);
   }
 }
 
@@ -577,7 +581,7 @@ void setup()
   msgInQ = xQueueCreate(36, 8);
   msgOutQ = xQueueCreate(36, 8);
 
-  CAN_Init(false);
+  CAN_Init(true);
   setCANFilter(0x123, 0x7ff);
   CAN_RegisterRX_ISR(CAN_RX_ISR);
   CAN_RegisterTX_ISR(CAN_TX_ISR);
