@@ -20,6 +20,7 @@ uint8_t RX_Message[8] = {0};
 QueueHandle_t msgInQ;
 QueueHandle_t msgOutQ;
 volatile uint8_t fromMine = 1;
+volatile uint8_t receiver = 1;
 
 // Knobs
 Knob knob0(0);
@@ -275,6 +276,7 @@ void scanKeysTask(void *pvParameters)
   uint32_t indx;
   uint8_t prevBit0 = 0;
   uint8_t prevBit1 = 0;
+  uint8_t prevKnob2Button = 1;
   while (1)
   {
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -285,12 +287,16 @@ void scanKeysTask(void *pvParameters)
       uint8_t keys = readCols();
       localKeyArray[i] = keys;
     }
-    // findKeyChanges(localKeyArray);
+    uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
+    if (!localReceiver)
+      {
+        findKeyChanges(localKeyArray);
+      }
     cpyKeyArray(localKeyArray);
 
     uint8_t localFromMine = __atomic_load_n(&fromMine, __ATOMIC_RELAXED);
 
-    if (localFromMine)
+    if (localFromMine && localReceiver)
     {
       for (uint8_t i = 0; i < 3; i++)
       {
@@ -336,12 +342,35 @@ void scanKeysTask(void *pvParameters)
         localCurrentStepSize = localCurrentStepSize >> (4 - octave);
       }
       __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+    }
 
+    //Only update the volume if the module is configured to be a receiver
+    if (localReceiver)
+    {
       knob3.updateRotationValue();
       knob3.updateButtonValue();
-      knob2.updateRotationValue();
-      knob2.updateButtonValue();
     }
+    
+    knob2.updateRotationValue();
+    knob2.updateButtonValue();
+
+    uint8_t knob2Button = knob2.getButton();
+
+    //Check to see if knob2 (Tx/Rx) has been pressed (i.e. gone from 1 -> 0)
+    if (!knob2Button && prevKnob2Button)
+    {
+      uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED); 
+      if (localReceiver)
+      {
+        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
+      }
+      else
+      {
+        __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+      }
+    }
+    prevKnob2Button = knob2Button;
+    
   }
 }
 
@@ -391,13 +420,23 @@ void displayUpdateTask(void *pvParameters)
     u8g2.print(localKeyArray[0], HEX);
     u8g2.print(localKeyArray[1], HEX);
     u8g2.print(localKeyArray[2], HEX);
-    u8g2.setCursor(40, 20);
-    u8g2.print("Vol: ");
-    u8g2.print(knob3.getRotation());
 
-    u8g2.drawStr(2, 30, note.c_str()); // write something to the internal memory
-    u8g2.setCursor(40, 30);
-    u8g2.print(knob3.getButton());
+    uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
+    
+    if (localReceiver)
+    {
+      u8g2.setCursor(110, 30);
+      u8g2.print("Rx");
+      u8g2.drawStr(2, 30, note.c_str());
+      u8g2.setCursor(70, 10);
+      u8g2.print("Vol: ");
+      u8g2.print(knob3.getRotation());
+    }
+    else
+    {
+      u8g2.setCursor(110, 30);
+      u8g2.print("Tx");
+    }
 
     u8g2.sendBuffer(); // transfer internal memory to the display
 
