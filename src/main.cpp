@@ -20,7 +20,6 @@ uint8_t RX_Message[8] = {0};
 QueueHandle_t msgInQ;
 QueueHandle_t msgOutQ;
 volatile uint8_t fromMine = 1;
-volatile uint8_t octave = 4;
 
 // Knobs
 Knob knob0(0);
@@ -177,9 +176,8 @@ void findKeyChanges(volatile uint32_t localKeyArray[7])
  */
 {
   xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
-  uint8_t TX_Message[8];
-  uint8_t localOctave = __atomic_load_n(&octave, __ATOMIC_RELAXED);  
-  TX_Message[1] = localOctave; // set the octave
+  uint8_t TX_Message[8];  
+  TX_Message[1] = knob2.getRotation()/2; // set the octave
 
   for (uint8_t i = 0; i < 3; i++)
   {
@@ -328,14 +326,14 @@ void scanKeysTask(void *pvParameters)
         }
       }
       // currentStepSize = localCurrentStepSize;
-      uint8_t localOctave = __atomic_load_n(&octave, __ATOMIC_RELAXED);
-      if (localOctave > 4)
+      uint8_t octave = knob2.getRotation()/2;
+      if (octave > 4)
       {
-        localCurrentStepSize = localCurrentStepSize << (localOctave - 4);
+        localCurrentStepSize = localCurrentStepSize << (octave - 4);
       }
       else
       {
-        localCurrentStepSize = localCurrentStepSize >> (4 - localOctave);
+        localCurrentStepSize = localCurrentStepSize >> (4 - octave);
       }
       __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
 
@@ -343,8 +341,6 @@ void scanKeysTask(void *pvParameters)
       knob3.updateButtonValue();
       knob2.updateRotationValue();
       knob2.updateButtonValue();
-      localOctave = knob2.getRotation()/2;
-      __atomic_store_n(&octave, localOctave, __ATOMIC_RELAXED);
     }
   }
 }
@@ -390,8 +386,7 @@ void displayUpdateTask(void *pvParameters)
     u8g2.setFont(u8g2_font_ncenB08_tr);   // choose a suitable font
     u8g2.setCursor(2, 10);
     u8g2.print("Octave: ");
-    uint8_t localOctave = __atomic_load_n(&octave, __ATOMIC_RELAXED);
-    u8g2.print(localOctave);
+    u8g2.print(knob2.getRotation()/2);
     u8g2.setCursor(2, 20);
     u8g2.print(localKeyArray[0], HEX);
     u8g2.print(localKeyArray[1], HEX);
