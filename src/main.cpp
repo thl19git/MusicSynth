@@ -581,7 +581,7 @@ void setup()
   msgInQ = xQueueCreate(36, 8);
   msgOutQ = xQueueCreate(36, 8);
 
-  CAN_Init(true);
+  CAN_Init(false);
   setCANFilter(0x123, 0x7ff);
   CAN_RegisterRX_ISR(CAN_RX_ISR);
   CAN_RegisterTX_ISR(CAN_TX_ISR);
