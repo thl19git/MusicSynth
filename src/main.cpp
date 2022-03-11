@@ -9,6 +9,11 @@ volatile uint32_t keyArray[7];
 // Notes
 std::string notes[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 std::string note; // should be volatile
+// Polyphony
+uint8_t externalPressedNotes[10] = {12};
+uint8_t externalOctaves[10] = {0};
+uint8_t localPressedNotes[12] = {0};
+int32_t phaseAccArray[12] = {0};
 
 // Step sizes
 const int32_t stepSizes[] = {51076056, 54113197, 57330935, 60740010, 64351798, 68178356, 72232452, 76527617, 81078186, 85899345, 91007186, 96418755};
@@ -31,6 +36,7 @@ Knob knob3(3, 0, 16);
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
+SemaphoreHandle_t notesMutex;
 
 // Display driver object
 U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
@@ -158,17 +164,50 @@ void sampleISR()
  * Updates phase accumulator, sets correct volume and sets the analogue output voltage at each sample interval
  */
 {
-  static int32_t phaseAcc = 0;
 
-  // Updating phase accumulator
-  phaseAcc += currentStepSize;
-  int32_t Vout = phaseAcc >> 24;
+  // ----- START OF POLYPOHONIC IMPLEMENTATION ----- //
+
+  uint8_t octave = knob2.getRotation() / 2;
+
+  int32_t Vout = 0;
+
+  for (uint8_t i = 0; i < 12; i++)
+  {
+    if (localPressedNotes[i])
+    {
+      if (octave > 4)
+      {
+        phaseAccArray[i] += stepSizes[i] << (octave - 4); 
+      }
+      else
+      {
+        phaseAccArray[i] += stepSizes[i] >> (4 - octave); 
+      }
+      Vout += phaseAccArray[i] >> 24;
+    }
+  }
+
+  // ----- END OF MOLYPOHONIC IMPLEMENTATION ----- //
+
+
+ 
+   // ----- START OF MOLYPOHONIC IMPLEMENTATION ----- //
+
+  // // Updating phase accumulator
+  // phaseAcc += currentStepSize;
+
+  // int32_t Vout = phaseAcc >> 24;
+
+  // ----- END OF MOLYPOHONIC IMPLEMENTATION ----- //
+
+  
 
   // Setting volume TODO: adjust volume limits using knob3.max and min
   Vout = Vout >> (8 - knob3.getRotation() / 2);
 
   // seting analogue output voltage
   analogWrite(OUTR_PIN, Vout + 128);
+
 }
 
 void findKeyChanges(volatile uint32_t localKeyArray[7])
@@ -259,6 +298,15 @@ void findKeyChanges(volatile uint32_t localKeyArray[7])
   xSemaphoreGive(keyArrayMutex);
 }
 
+void cpyPressedKeys(uint8_t pressedKeys[12]){
+  xSemaphoreTake(notesMutex, portMAX_DELAY);
+  for (uint8_t i = 0; i < 12; i++)
+  {
+    localPressedNotes[i] = pressedKeys[i];
+  }
+  xSemaphoreGive(notesMutex);
+}
+
 void scanKeysTask(void *pvParameters)
 /*
  * Function to be run on its own thread that:
@@ -294,55 +342,84 @@ void scanKeysTask(void *pvParameters)
       }
     cpyKeyArray(localKeyArray);
 
-    uint8_t localFromMine = __atomic_load_n(&fromMine, __ATOMIC_RELAXED);
+    // ----- START OF POLYPOHONIC IMPLEMENTATION ----- //
 
-    if (localFromMine && localReceiver)
+    uint8_t pressedKeys[12] = {0};
+
+    if (localReceiver)
     {
       for (uint8_t i = 0; i < 3; i++)
       {
         uint8_t keys = localKeyArray[i];
-        if (~keys & 0b0001)
+        for (uint8_t j = 0; j < 4; j++)
         {
-          localCurrentStepSize = stepSizes[i * 4];
-          note = notes[i * 4];
-          break;
-        }
-        else if (~keys & 0b0010)
-        {
-          localCurrentStepSize = stepSizes[i * 4 + 1];
-          note = notes[i * 4 + 1];
-          break;
-        }
-        else if (~keys & 0b0100)
-        {
-          localCurrentStepSize = stepSizes[i * 4 + 2];
-          note = notes[i * 4 + 2];
-          break;
-        }
-        else if (~keys & 0b1000)
-        {
-          localCurrentStepSize = stepSizes[i * 4 + 3];
-          note = notes[i * 4 + 3];
-          break;
-        }
-        else
-        {
-          localCurrentStepSize = 0;
-          note = "";
+          uint8_t mask = 1 << j;
+          if (~keys & mask)
+          {
+            pressedKeys[i*4 + j] = 1;
+          }
         }
       }
-      // currentStepSize = localCurrentStepSize;
-      uint8_t octave = knob2.getRotation()/2;
-      if (octave > 4)
-      {
-        localCurrentStepSize = localCurrentStepSize << (octave - 4);
-      }
-      else
-      {
-        localCurrentStepSize = localCurrentStepSize >> (4 - octave);
-      }
-      __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
     }
+
+    cpyPressedKeys(pressedKeys);
+
+    // ----- END OF POLYPOHONIC IMPLEMENTATION ----- //
+
+    // ----- START OF MOLYPOHONIC IMPLEMENTATION ----- //
+
+    // uint8_t localFromMine = __atomic_load_n(&fromMine, __ATOMIC_RELAXED);
+
+    // if (localFromMine && localReceiver)
+    // {
+    //   for (uint8_t i = 0; i < 3; i++)
+    //   {
+    //     uint8_t keys = localKeyArray[i];
+    //     if (~keys & 0b0001)
+    //     {
+    //       localCurrentStepSize = stepSizes[i * 4];
+    //       note = notes[i * 4];
+    //       break;
+    //     }
+    //     else if (~keys & 0b0010)
+    //     {
+    //       localCurrentStepSize = stepSizes[i * 4 + 1];
+    //       note = notes[i * 4 + 1];
+    //       break;
+    //     }
+    //     else if (~keys & 0b0100)
+    //     {
+    //       localCurrentStepSize = stepSizes[i * 4 + 2];
+    //       note = notes[i * 4 + 2];
+    //       break;
+    //     }
+    //     else if (~keys & 0b1000)
+    //     {
+    //       localCurrentStepSize = stepSizes[i * 4 + 3];
+    //       note = notes[i * 4 + 3];
+    //       break;
+    //     }
+    //     else
+    //     {
+    //       localCurrentStepSize = 0;
+    //       note = "";
+    //     }
+    //   }
+    //   // currentStepSize = localCurrentStepSize;
+    //   uint8_t octave = knob2.getRotation()/2;
+    //   if (octave > 4)
+    //   {
+    //     localCurrentStepSize = localCurrentStepSize << (octave - 4);
+    //   }
+    //   else
+    //   {
+    //     localCurrentStepSize = localCurrentStepSize >> (4 - octave);
+    //   }
+    //   __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+    // }
+
+    // ----- END OF MOLYPOHONIC IMPLEMENTATION ----- //
+
 
     //Only update the volume if the module is configured to be a receiver
     if (localReceiver)
@@ -506,6 +583,7 @@ void setup()
   // put your setup code here, to run once:
 
   keyArrayMutex = xSemaphoreCreateMutex();
+  notesMutex = xSemaphoreCreateMutex();
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3, 3);
 
   TIM_TypeDef *Instance = TIM1;
