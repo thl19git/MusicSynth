@@ -37,9 +37,11 @@ const int DRST_BIT = 4;
 const int HKOW_BIT = 5;
 const int HKOE_BIT = 6;
 
-
 // Step sizes
 const int32_t stepSizes[] = {51076056, 54113197, 57330935, 60740010, 64351798, 68178356, 72232452, 76527617, 81078186, 85899345, 91007186, 96418755};
+
+// Frequencies
+const int32_t frequencies[] = {262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494};
 
 void setOutMuxBit(const uint8_t bitIdx, const bool value);
 
