@@ -65,8 +65,8 @@ void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
     if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
     {
       voices[i].status = 1;
-      voices[i].lifeTime = 22000;
-      break;
+      voices[i].lifeTime = 44000;
+      // break;
     }
   }
 }
@@ -116,24 +116,6 @@ int32_t SoundGenerator::getVout()
     // Checking not free voice
     if (voices[i].status != 0)
     {
-      // Checking if status is echo
-      if (voices[i].status == 1)
-      {
-        // Checking if lifetime is over
-        if (voices[i].lifeTime == 0)
-        {
-          // removing key
-          voices[i].status = 0;
-          voices[i].note = 0;
-          voices[i].octave = 0;
-          voices[i].phaseAcc = 0;
-        }
-        else
-        {
-          // counting down lifetime
-          voices[i].lifeTime -= 1;
-        }
-      }
 
       switch (knob0.getRotation())
       {
@@ -157,8 +139,31 @@ int32_t SoundGenerator::getVout()
         triangular(i);
         break;
       }
+
+      // Checking if status is echo
+      if (voices[i].status == 1)
+      {
+        Vout += voices[i].phaseAcc >> 26;
+        // Checking if lifetime is over
+        if (voices[i].lifeTime == 0)
+        {
+          // removing key
+          voices[i].status = 0;
+          voices[i].note = 0;
+          voices[i].octave = 0;
+          voices[i].phaseAcc = 0;
+        }
+        else
+        {
+          // counting down lifetime
+          voices[i].lifeTime -= 1;
+        }
+      }
+      else
+      {
+        Vout += voices[i].phaseAcc >> 24;
+      }
     }
-    Vout += voices[i].phaseAcc >> 24;
   }
 
   return Vout;
