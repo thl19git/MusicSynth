@@ -5,7 +5,6 @@
 
 struct Voice
 {
-  bool free;
 
   uint8_t status;
   /*
@@ -13,6 +12,7 @@ struct Voice
    * status = 1: echo (dying)
    * status = 2: not free
    */
+  uint16_t lifeTime;
   uint8_t octave;
   uint8_t note;
   int32_t phaseAcc;
@@ -43,6 +43,15 @@ public:
    *
    */
 
+  void echoKey(uint8_t octave, uint8_t note);
+  /*
+   * sets status of key to echo which gives it a limited time span before being removed
+   *
+   * :param octave: the octave of the key (1-7)
+   *
+   * :param note: the note of the key (0-11)
+   *
+   */
   void removeKey(uint8_t octave, uint8_t note);
   /*
    * Removes a key from the voices array, indicating the key has been released

@@ -222,7 +222,8 @@ void scanKeysTask(void *pvParameters)
               // Key has been released
               if (localReceiver)
               {
-                soundGen.removeKey(octave, i * 4 + j);
+                // soundGen.removeKey(octave, i * 4 + j);
+                soundGen.echoKey(octave, i * 4 + j);
               }
               else
               {
@@ -420,7 +421,8 @@ void decodeTask(void *pvParameters)
       else
       {
         // Release
-        soundGen.removeKey(octave, note);
+        // soundGen.removeKey(octave, note);
+        soundGen.echoKey(octave, note);
       }
     }
   }

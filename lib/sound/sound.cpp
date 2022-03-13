@@ -15,6 +15,7 @@ SoundGenerator::SoundGenerator()
   for (uint8_t i = 0; i < 12; i++)
   {
     voices[i].status = 0;
+    voices[i].lifeTime = 0;
     voices[i].note = 0;
     voices[i].octave = 0;
     voices[i].phaseAcc = 0;
@@ -49,6 +50,27 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
   xSemaphoreGive(notesMutex);
 }
 
+void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
+/*
+ * sets status of key to echo which gives it a limited time span before being removed
+ *
+ * :param octave: the octave of the key (1-7)
+ *
+ * :param note: the note of the key (0-11)
+ *
+ */
+{
+  for (uint8_t i = 0; i < 12; i++)
+  {
+    if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
+    {
+      voices[i].status = 1;
+      voices[i].lifeTime = 22000;
+      break;
+    }
+  }
+}
+
 void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
 /*
  * Removes a key from the voices array, indicating the key has been released
@@ -70,6 +92,7 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
       voices[i].note = 0;
       voices[i].octave = 0;
       voices[i].phaseAcc = 0;
+      voices[i].lifeTime = 0;
       break;
     }
   }
@@ -92,6 +115,17 @@ int32_t SoundGenerator::getVout()
   {
     if (voices[i].status != 0)
     {
+      if (voices[i].status == 1)
+      {
+        if (voices[i].lifeTime == 0)
+        {
+          removeKey(voices[i].octave, voices[i].note);
+        }
+        else
+        {
+          voices[i].lifeTime -= 1;
+        }
+      }
 
       switch (knob0.getRotation())
       {
