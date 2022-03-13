@@ -32,7 +32,7 @@ volatile uint8_t receiver = 1;
 // Knobs
 Knob knob0(0, 0, 3); // Sound wave
 Knob knob1(1);
-Knob knob2(2, 2, 14); // Octave
+Knob knob2(2, 1, 7);  // Octave
 Knob knob3(3, 0, 16); // Volume
 
 // Joystick
@@ -228,7 +228,7 @@ void scanKeysTask(void *pvParameters)
               {
                 uint8_t TX_Message[8];
                 TX_Message[0] = 'R';
-                TX_Message[1] = knob2.getRotation() / 2;
+                TX_Message[1] = knob2.getRotation();
                 TX_Message[2] = i * 4 + j;
                 xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
               }
@@ -244,7 +244,7 @@ void scanKeysTask(void *pvParameters)
               {
                 uint8_t TX_Message[8];
                 TX_Message[0] = 'P';
-                TX_Message[1] = knob2.getRotation() / 2;
+                TX_Message[1] = knob2.getRotation();
                 TX_Message[2] = i * 4 + j;
                 xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
               }
@@ -361,7 +361,7 @@ void displayUpdateTask(void *pvParameters)
     u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
     u8g2.setCursor(2, 10);
     u8g2.print("Octave: ");
-    u8g2.print(knob2.getRotation() / 2);
+    u8g2.print(knob2.getRotation());
     u8g2.setCursor(2, 20);
     u8g2.print("Wave Type: ");
     u8g2.print(waveType[knob0.getRotation()].c_str());

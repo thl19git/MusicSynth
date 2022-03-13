@@ -54,19 +54,19 @@ public:
    * :return: the output voltage (pre volume shifting and dc-offset addition)
    */
 
-  uint8_t getWaveform();
-  /*
-   * Atomically loads the current waveform type (0 = sawtooth)
-   *
-   * :return: the waveform id number (0-0)
-   */
+  // uint8_t getWaveform();
+  // /*
+  //  * Atomically loads the current waveform type (0 = sawtooth)
+  //  *
+  //  * :return: the waveform id number (0-0)
+  //  */
 
-  void setWaveform(uint8_t wf);
-  /*
-   * Atomically stores the selected waveform type (0 = sawtooth)
-   *
-   * :param wf: the waveform id number (0-0)
-   */
+  // void setWaveform(uint8_t wf);
+  // /*
+  //  * Atomically stores the selected waveform type (0 = sawtooth)
+  //  *
+  //  * :param wf: the waveform id number (0-0)
+  //  */
 
   void sawtooth(uint8_t voiceIndx);
   /*
