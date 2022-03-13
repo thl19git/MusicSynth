@@ -170,7 +170,7 @@ void sampleISR()
 
   int32_t Vout = soundGen.getVout();
 
-  // Setting volume TODO: adjust volume limits using knob3.max and min
+  // Setting volume
   Vout = Vout >> (8 - knob3.getRotation() / 2);
 
   // seting analogue output voltage

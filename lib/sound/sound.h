@@ -33,7 +33,7 @@ public:
    * :param octave: the octave of the key (1-7)
    *
    * :param note: the note of the key (0-11)
-   * 
+   *
    */
 
   void removeKey(uint8_t octave, uint8_t note);
@@ -43,7 +43,7 @@ public:
    * :param octave: the octave of the key (1-7)
    *
    * :param note: the note of the key (0-11)
-   * 
+   *
    */
 
   // Should only be called from an ISR
@@ -67,6 +67,23 @@ public:
    *
    * :param wf: the waveform id number (0-0)
    */
+
+  void sawtooth(uint8_t voiceIndx);
+  /*
+   * Produces a sawtooth Vout for a specific note related to a specific voice
+   *
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
+   */
 };
+
+int32_t getShift(int32_t currentVoiceStepSize);
+/*
+ * Gets shift caused by movement in joystick x axis, applies shift to the current step size.
+ * Note: function only gets called from a the interupt function sampleISR(), and therefore global variables can be accessed with no worry about synchronisation erros
+ *
+ * :return: shifted step size.
+ */
 
 #endif
