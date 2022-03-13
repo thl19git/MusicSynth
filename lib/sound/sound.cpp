@@ -14,7 +14,7 @@ SoundGenerator::SoundGenerator()
 {
   for (uint8_t i = 0; i < 12; i++)
   {
-    voices[i].free = true;
+    voices[i].status = 0;
     voices[i].note = 0;
     voices[i].octave = 0;
     voices[i].phaseAcc = 0;
@@ -36,9 +36,10 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if (voices[i].free)
+    // Check if voice is free
+    if (voices[i].status == 0)
     {
-      voices[i].free = false;
+      voices[i].status = 2;
       voices[i].note = note;
       voices[i].octave = octave;
       break;
@@ -63,9 +64,9 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if (!voices[i].free && voices[i].octave == octave && voices[i].note == note)
+    if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
     {
-      voices[i].free = true;
+      voices[i].status = 0;
       voices[i].note = 0;
       voices[i].octave = 0;
       voices[i].phaseAcc = 0;
@@ -89,7 +90,7 @@ int32_t SoundGenerator::getVout()
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if (!voices[i].free)
+    if (voices[i].status != 0)
     {
 
       switch (knob0.getRotation())

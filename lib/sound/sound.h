@@ -6,6 +6,13 @@
 struct Voice
 {
   bool free;
+
+  uint8_t status;
+  /*
+   * status = 0: free
+   * status = 1: echo (dying)
+   * status = 2: not free
+   */
   uint8_t octave;
   uint8_t note;
   int32_t phaseAcc;
