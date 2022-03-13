@@ -113,16 +113,24 @@ int32_t SoundGenerator::getVout()
 
   for (uint8_t i = 0; i < 12; i++)
   {
+    // Checking not free voice
     if (voices[i].status != 0)
     {
+      // Checking if status is echo
       if (voices[i].status == 1)
       {
+        // Checking if lifetime is over
         if (voices[i].lifeTime == 0)
         {
-          removeKey(voices[i].octave, voices[i].note);
+          // removing key
+          voices[i].status = 0;
+          voices[i].note = 0;
+          voices[i].octave = 0;
+          voices[i].phaseAcc = 0;
         }
         else
         {
+          // counting down lifetime
           voices[i].lifeTime -= 1;
         }
       }
