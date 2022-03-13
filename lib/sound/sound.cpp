@@ -19,6 +19,7 @@ SoundGenerator::SoundGenerator()
     voices[i].note = 0;
     voices[i].octave = 0;
     voices[i].phaseAcc = 0;
+    voices[i].intensityRightShift = 24;
   }
 }
 
@@ -43,6 +44,8 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
       voices[i].status = 2;
       voices[i].note = note;
       voices[i].octave = octave;
+      voices[i].intensityRightShift = 24;
+
       break;
     }
   }
@@ -143,7 +146,12 @@ int32_t SoundGenerator::getVout()
       // Checking if status is echo
       if (voices[i].status == 1)
       {
-        Vout += voices[i].phaseAcc >> 26;
+        if (voices[i].lifeTime == 36667 || voices[i].lifeTime == 29334 || voices[i].lifeTime == 22001 || voices[i].lifeTime == 14668 || voices[i].lifeTime == 7335)
+        {
+          voices[i].intensityRightShift += 1;
+        }
+        Vout += voices[i].phaseAcc >> voices[i].intensityRightShift;
+
         // Checking if lifetime is over
         if (voices[i].lifeTime == 0)
         {

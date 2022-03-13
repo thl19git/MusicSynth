@@ -13,6 +13,7 @@ struct Voice
    * status = 2: not free
    */
   uint16_t lifeTime;
+  uint8_t intensityRightShift;
   uint8_t octave;
   uint8_t note;
   int32_t phaseAcc;
