@@ -18,7 +18,7 @@ private:
   Voice voices[12];
 
   // What waveform to produce - 0 = sawtooth
-  volatile uint8_t waveform = 0;
+  // volatile uint8_t waveform = 0;
 
 public:
   SoundGenerator();
@@ -71,6 +71,33 @@ public:
   void sawtooth(uint8_t voiceIndx);
   /*
    * Produces a sawtooth Vout for a specific note related to a specific voice
+   *
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
+   */
+
+  void sine(uint8_t voiceIndx);
+  /*
+   * Produces a sine Vout for a specific note related to a specific voice
+   *
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
+   */
+
+  void square(uint8_t voiceIndx);
+  /*
+   * Produces a square Vout for a specific note related to a specific voice
+   *
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
+   */
+
+  void triangular(uint8_t voiceIndx);
+  /*
+   * Produces a triangular Vout for a specific note related to a specific voice
    *
    * :param voiceIndx: index of the specific voice that has already been checked if free
    *
