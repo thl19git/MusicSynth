@@ -207,7 +207,7 @@ void scanKeysTask(void *pvParameters)
 
     if (localReceiver)
     {
-      uint8_t octave = knob2.getRotation() / 2;
+      uint8_t octave = knob2.getRotation();
       for (uint8_t i = 0; i < 3; i++)
       {
         uint8_t keys = localKeyArray[i];
