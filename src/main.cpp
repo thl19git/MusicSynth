@@ -2,6 +2,7 @@
 #include <ES_CAN.h>
 #include "knob.h"
 #include "sound.h"
+#include "joystick.h"
 #include "main.h"
 
 // Key Array
@@ -10,6 +11,10 @@ volatile uint32_t keyArray[7];
 // Notes
 std::string notes[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 std::string note; // should be volatile
+volatile int8_t noteIndx;
+
+// Wave types
+std::string waveType[] = {"Sawtooth", "Sine", "Square", "Traingle"};
 
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
@@ -25,10 +30,13 @@ QueueHandle_t msgOutQ;
 volatile uint8_t receiver = 1;
 
 // Knobs
-Knob knob0(0);
+Knob knob0(0, 0, 3); // Sound wave
 Knob knob1(1);
-Knob knob2(2, 2, 14);
-Knob knob3(3, 0, 16);
+Knob knob2(2, 1, 7);  // Octave
+Knob knob3(3, 0, 16); // Volume
+
+// Joystick
+Joystick joystick;
 
 // Sound Gen
 SoundGenerator soundGen;
@@ -162,14 +170,12 @@ void sampleISR()
 
   int32_t Vout = soundGen.getVout();
 
-  // Setting volume TODO: adjust volume limits using knob3.max and min
+  // Setting volume
   Vout = Vout >> (8 - knob3.getRotation() / 2);
 
   // seting analogue output voltage
   analogWrite(OUTR_PIN, Vout + 128);
-
 }
-
 
 void scanKeysTask(void *pvParameters)
 /*
@@ -209,21 +215,21 @@ void scanKeysTask(void *pvParameters)
         for (uint8_t j = 0; j < 4; j++)
         {
           uint8_t mask = 1 << j;
-          if ((keys & mask)^(oldKeys & mask))
+          if ((keys & mask) ^ (oldKeys & mask))
           {
             if (keys & mask)
             {
               // Key has been released
               if (localReceiver)
               {
-                soundGen.removeKey(octave, i*4+j);
+                soundGen.removeKey(octave, i * 4 + j);
               }
               else
               {
                 uint8_t TX_Message[8];
                 TX_Message[0] = 'R';
-                TX_Message[1] = knob2.getRotation()/2;
-                TX_Message[2] = i*4+j;
+                TX_Message[1] = knob2.getRotation();
+                TX_Message[2] = i * 4 + j;
                 xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
               }
             }
@@ -232,14 +238,14 @@ void scanKeysTask(void *pvParameters)
               // Key has been pressed
               if (localReceiver)
               {
-                soundGen.addKey(octave, i*4+j);
+                soundGen.addKey(octave, i * 4 + j);
               }
               else
               {
                 uint8_t TX_Message[8];
                 TX_Message[0] = 'P';
-                TX_Message[1] = knob2.getRotation()/2;
-                TX_Message[2] = i*4+j;
+                TX_Message[1] = knob2.getRotation();
+                TX_Message[2] = i * 4 + j;
                 xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
               }
             }
@@ -252,13 +258,14 @@ void scanKeysTask(void *pvParameters)
 
     cpyKeyArray(localKeyArray);
 
-    // Only update the volume if the module is configured to be a receiver
+    // Only update the volume and sound wave if the module is configured to be a receiver
     if (localReceiver)
     {
       knob3.updateRotationValue();
       knob3.updateButtonValue();
+      knob0.updateRotationValue();
     }
-    
+
     // Update the octave - user guidance: don't change the octave whilst keys are being pressed!!
     knob2.updateRotationValue();
     knob2.updateButtonValue();
@@ -268,7 +275,7 @@ void scanKeysTask(void *pvParameters)
     // Check to see if knob2 (Tx/Rx) has been pressed (i.e. gone from 1 -> 0)
     if (!knob2Button && prevKnob2Button)
     {
-      uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED); 
+      uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
       if (localReceiver)
       {
         __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
@@ -279,7 +286,37 @@ void scanKeysTask(void *pvParameters)
       }
     }
     prevKnob2Button = knob2Button;
-    
+  }
+}
+
+void joystickTask(void *pvParameters)
+/*
+ * Function to be run on its own thread that:
+ *   updates joystick global variables ,
+ *   for now: serial prints results
+ *
+ * :param pvParameters: Thread parameter information
+ */
+{
+  // Initiation interval
+  const TickType_t xFrequency = 30 / portTICK_PERIOD_MS;
+
+  // Tick count of last initiation
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+
+  while (1)
+  {
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+    // Updating joystick data
+    joystick.updateJoystickPosition();
+
+    // Updating joystick button data
+    joystick.updateJoystickButton();
+
+    // for testing
+    // double shift = sin(joystick.getX());
+    // Serial.println(joystick.getX());
   }
 }
 
@@ -320,18 +357,17 @@ void displayUpdateTask(void *pvParameters)
     xSemaphoreGive(keyArrayMutex);
 
     // Update display
-    u8g2.clearBuffer();                   // clear the internal memory
-    u8g2.setFont(u8g2_font_ncenB08_tr);   // choose a suitable font
+    u8g2.clearBuffer();                 // clear the internal memory
+    u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
     u8g2.setCursor(2, 10);
     u8g2.print("Octave: ");
-    u8g2.print(knob2.getRotation()/2);
+    u8g2.print(knob2.getRotation());
     u8g2.setCursor(2, 20);
-    u8g2.print(localKeyArray[0], HEX);
-    u8g2.print(localKeyArray[1], HEX);
-    u8g2.print(localKeyArray[2], HEX);
+    u8g2.print("Wave Type: ");
+    u8g2.print(waveType[knob0.getRotation()].c_str());
 
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
-    
+
     if (localReceiver)
     {
       u8g2.setCursor(110, 30);
@@ -411,6 +447,15 @@ void setup()
       NULL,             /* Parameter passed into the task */
       4,                /* Task priority */
       &scanKeysHandle); /* Pointer to store the task handle */
+
+  TaskHandle_t joystickHandle = NULL;
+  xTaskCreate(
+      joystickTask,     /* Function that implements the task */
+      "joystick",       /* Text name for the task */
+      64,               /* Stack size in words, not bytes */
+      NULL,             /* Parameter passed into the task */
+      2,                /* Task priority */
+      &joystickHandle); /* Pointer to store the task handle */
 
   TaskHandle_t displayUpdateTaskHandle = NULL;
   xTaskCreate(

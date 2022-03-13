@@ -45,8 +45,8 @@ Knob::Knob(uint8_t id, int8_t minVal, int8_t maxVal)
     }
 
     // assigns lower and upper limit
-    lowerLimit = minVal;
-    upperLimit = maxVal;
+    lowerLimit = minVal * 2;
+    upperLimit = maxVal * 2;
 }
 
 void Knob::updateRotationValue()
@@ -185,7 +185,7 @@ int Knob::getRotation()
  * :return: current value of global knobRotation
  */
 {
-    return __atomic_load_n(&knobRotation, __ATOMIC_RELAXED);
+    return __atomic_load_n(&knobRotation, __ATOMIC_RELAXED) / 2;
 }
 
 int Knob::getButton()

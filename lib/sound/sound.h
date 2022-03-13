@@ -18,7 +18,7 @@ private:
   Voice voices[12];
 
   // What waveform to produce - 0 = sawtooth
-  volatile uint8_t waveform = 0;
+  // volatile uint8_t waveform = 0;
 
 public:
   SoundGenerator();
@@ -33,7 +33,7 @@ public:
    * :param octave: the octave of the key (1-7)
    *
    * :param note: the note of the key (0-11)
-   * 
+   *
    */
 
   void removeKey(uint8_t octave, uint8_t note);
@@ -43,7 +43,7 @@ public:
    * :param octave: the octave of the key (1-7)
    *
    * :param note: the note of the key (0-11)
-   * 
+   *
    */
 
   // Should only be called from an ISR
@@ -54,19 +54,63 @@ public:
    * :return: the output voltage (pre volume shifting and dc-offset addition)
    */
 
-  uint8_t getWaveform();
+  // uint8_t getWaveform();
+  // /*
+  //  * Atomically loads the current waveform type (0 = sawtooth)
+  //  *
+  //  * :return: the waveform id number (0-0)
+  //  */
+
+  // void setWaveform(uint8_t wf);
+  // /*
+  //  * Atomically stores the selected waveform type (0 = sawtooth)
+  //  *
+  //  * :param wf: the waveform id number (0-0)
+  //  */
+
+  void sawtooth(uint8_t voiceIndx);
   /*
-   * Atomically loads the current waveform type (0 = sawtooth)
+   * Produces a sawtooth Vout for a specific note related to a specific voice
    *
-   * :return: the waveform id number (0-0)
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
    */
 
-  void setWaveform(uint8_t wf);
+  void sine(uint8_t voiceIndx);
   /*
-   * Atomically stores the selected waveform type (0 = sawtooth)
+   * Produces a sine Vout for a specific note related to a specific voice
    *
-   * :param wf: the waveform id number (0-0)
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
+   */
+
+  void square(uint8_t voiceIndx);
+  /*
+   * Produces a square Vout for a specific note related to a specific voice
+   *
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
+   */
+
+  void triangular(uint8_t voiceIndx);
+  /*
+   * Produces a triangular Vout for a specific note related to a specific voice
+   *
+   * :param voiceIndx: index of the specific voice that has already been checked if free
+   *
+   * :return: Vout for that specific voice that needs shifting and volume adjustment
    */
 };
+
+int32_t getShift(int32_t currentVoiceStepSize);
+/*
+ * Gets shift caused by movement in joystick x axis, applies shift to the current step size.
+ * Note: function only gets called from a the interupt function sampleISR(), and therefore global variables can be accessed with no worry about synchronisation erros
+ *
+ * :return: shifted step size.
+ */
 
 #endif
