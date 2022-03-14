@@ -147,7 +147,7 @@ int32_t SoundGenerator::getVout()
       {
         uint32_t localLifeTime = getGlobalLifeTime();
         uint32_t scaleFactor = localLifeTime / 6;
-        if (voices[i].lifeTime == localLifeTime - scaleFactor || voices[i].lifeTime == 44000 - (2 * scaleFactor) || voices[i].lifeTime == localLifeTime - (3 * scaleFactor) || voices[i].lifeTime == localLifeTime - (4 * scaleFactor) || voices[i].lifeTime == localLifeTime - (5 * scaleFactor))
+        if (voices[i].lifeTime == localLifeTime - scaleFactor || voices[i].lifeTime == localLifeTime - (2 * scaleFactor) || voices[i].lifeTime == localLifeTime - (3 * scaleFactor) || voices[i].lifeTime == localLifeTime - (4 * scaleFactor) || voices[i].lifeTime == localLifeTime - (5 * scaleFactor))
         {
           voices[i].intensityRightShift += 1;
         }
