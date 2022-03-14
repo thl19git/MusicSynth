@@ -12,7 +12,7 @@ struct Voice
    * status = 1: echo (dying)
    * status = 2: not free
    */
-  uint16_t lifeTime;
+  uint32_t lifeTime;
   uint8_t intensityRightShift;
   uint8_t octave;
   uint8_t note;
@@ -26,7 +26,9 @@ private:
   Voice voices[12];
 
   // What waveform to produce - 0 = sawtooth
-  // volatile uint8_t waveform = 0;
+  volatile uint8_t waveform = 0;
+
+  volatile uint32_t globalLifetime;
 
 public:
   SoundGenerator();
@@ -71,19 +73,33 @@ public:
    * :return: the output voltage (pre volume shifting and dc-offset addition)
    */
 
-  // uint8_t getWaveform();
-  // /*
-  //  * Atomically loads the current waveform type (0 = sawtooth)
-  //  *
-  //  * :return: the waveform id number (0-0)
-  //  */
+  uint8_t getWaveform();
+  /*
+   * Atomically loads the current waveform type (0 = sawtooth)
+   *
+   * :return: the waveform id number (0-0)
+   */
 
-  // void setWaveform(uint8_t wf);
-  // /*
-  //  * Atomically stores the selected waveform type (0 = sawtooth)
-  //  *
-  //  * :param wf: the waveform id number (0-0)
-  //  */
+  void setWaveform(uint8_t wf);
+  /*
+   * Atomically stores the selected waveform type (0 = sawtooth)
+   *
+   * :param wf: the waveform id number (0-0)
+   */
+
+  uint32_t getGlobalLifeTime();
+  /*
+   * Atomically loads the current globalLifeTime
+   *
+   * :return: the adjusted global lifetime in terms of cycles
+   */
+
+  void setGlobalLifeTime(uint16_t lifeTime);
+  /*
+   * Atomically stores the selected globalLifeTime
+   *
+   * :param wf: the life time in seconds
+   */
 
   void sawtooth(uint8_t voiceIndx);
   /*

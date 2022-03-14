@@ -30,9 +30,9 @@ QueueHandle_t msgOutQ;
 volatile uint8_t receiver = 1;
 
 // Knobs
-Knob knob0(0, 0, 3); // Sound wave
+Knob knob0(0, 0, 10); // Rotation: Echo || Button: Sound wave
 Knob knob1(1);
-Knob knob2(2, 1, 7);  // Octave
+Knob knob2(2, 1, 7);  // Rotation: Octave || Button: Tx/Rx
 Knob knob3(3, 0, 16); // Volume
 
 // Joystick
@@ -191,6 +191,7 @@ void scanKeysTask(void *pvParameters)
   TickType_t xLastWakeTime = xTaskGetTickCount();
   volatile uint32_t localKeyArray[7];
   uint8_t prevKnob2Button = 1;
+  uint8_t prevKnob0Button = 1;
   while (1)
   {
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -264,7 +265,10 @@ void scanKeysTask(void *pvParameters)
     {
       knob3.updateRotationValue();
       knob3.updateButtonValue();
+
       knob0.updateRotationValue();
+      soundGen.setGlobalLifeTime(knob0.getRotation());
+      knob0.updateButtonValue();
     }
 
     // Update the octave - user guidance: don't change the octave whilst keys are being pressed!!
@@ -287,6 +291,24 @@ void scanKeysTask(void *pvParameters)
       }
     }
     prevKnob2Button = knob2Button;
+
+    uint8_t knob0Button = knob0.getButton();
+
+    // Check to see if knob0 (wave_type) has been pressed (i.e. gone from 1 -> 0)
+    if (!knob0Button && prevKnob0Button)
+    {
+      uint8_t localSoundWave = soundGen.getWaveform();
+      if (localSoundWave == 3)
+      {
+        localSoundWave = 0;
+      }
+      else
+      {
+        localSoundWave += 1;
+      }
+      soundGen.setWaveform(localSoundWave);
+    }
+    prevKnob0Button = knob0Button;
   }
 }
 
@@ -360,12 +382,19 @@ void displayUpdateTask(void *pvParameters)
     // Update display
     u8g2.clearBuffer();                 // clear the internal memory
     u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
+
     u8g2.setCursor(2, 10);
     u8g2.print("Octave: ");
     u8g2.print(knob2.getRotation());
+
     u8g2.setCursor(2, 20);
-    u8g2.print("Wave Type: ");
-    u8g2.print(waveType[knob0.getRotation()].c_str());
+    u8g2.print("Wave: ");
+    u8g2.print(waveType[soundGen.getWaveform()].c_str());
+
+    u8g2.setCursor(50, 30);
+    u8g2.print("Echo: ");
+    u8g2.print(knob0.getRotation());
+    u8g2.print("s");
 
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
 

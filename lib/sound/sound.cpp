@@ -68,7 +68,7 @@ void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
     if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
     {
       voices[i].status = 1;
-      voices[i].lifeTime = 44000;
+      voices[i].lifeTime = getGlobalLifeTime();
       // break;
     }
   }
@@ -110,8 +110,7 @@ int32_t SoundGenerator::getVout()
  * :return: the output voltage (pre volume shifting and dc-offset addition)
  */
 {
-  // uint8_t wf = __atomic_load_n(&waveform, __ATOMIC_RELAXED);
-  extern Knob knob0;
+  uint8_t wf = __atomic_load_n(&waveform, __ATOMIC_RELAXED);
   int32_t Vout = 0;
 
   for (uint8_t i = 0; i < 12; i++)
@@ -120,7 +119,7 @@ int32_t SoundGenerator::getVout()
     if (voices[i].status != 0)
     {
 
-      switch (knob0.getRotation())
+      switch (wf)
       {
       // Sawtooth wave
       case 0:
@@ -146,7 +145,9 @@ int32_t SoundGenerator::getVout()
       // Checking if status is echo
       if (voices[i].status == 1)
       {
-        if (voices[i].lifeTime == 36667 || voices[i].lifeTime == 29334 || voices[i].lifeTime == 22001 || voices[i].lifeTime == 14668 || voices[i].lifeTime == 7335)
+        uint32_t localLifeTime = getGlobalLifeTime();
+        uint32_t scaleFactor = localLifeTime / 6;
+        if (voices[i].lifeTime == localLifeTime - scaleFactor || voices[i].lifeTime == 44000 - (2 * scaleFactor) || voices[i].lifeTime == localLifeTime - (3 * scaleFactor) || voices[i].lifeTime == localLifeTime - (4 * scaleFactor) || voices[i].lifeTime == localLifeTime - (5 * scaleFactor))
         {
           voices[i].intensityRightShift += 1;
         }
@@ -177,26 +178,44 @@ int32_t SoundGenerator::getVout()
   return Vout;
 }
 
-// uint8_t SoundGenerator::getWaveform()
-// /*
-//  * Atomically loads the current waveform type (0 = sawtooth)
-//  *
-//  * :return: the waveform id number (0-0)
-//  */
-// {
-//   return __atomic_load_n(&waveform, __ATOMIC_RELAXED);
-// }
+uint8_t SoundGenerator::getWaveform()
+/*
+ * Atomically loads the current waveform type (0 = sawtooth)
+ *
+ * :return: the waveform id number (0-0)
+ */
+{
+  return __atomic_load_n(&waveform, __ATOMIC_RELAXED);
+}
 
-// void SoundGenerator::setWaveform(uint8_t wf)
-// /*
-//  * Atomically stores the selected waveform type (0 = sawtooth)
-//  *
-//  * :param wf: the waveform id number (0-0)
-//  */
-// {
-//   __atomic_store_n(&waveform, wf, __ATOMIC_RELAXED);
-// }
+void SoundGenerator::setWaveform(uint8_t wf)
+/*
+ * Atomically stores the selected waveform type (0 = sawtooth)
+ *
+ * :param wf: the waveform id number (0-0)
+ */
+{
+  __atomic_store_n(&waveform, wf, __ATOMIC_RELAXED);
+}
 
+uint32_t SoundGenerator::getGlobalLifeTime()
+/*
+ * Atomically loads the current globalLifeTime
+ *
+ * :return: the adjusted global lifetime in terms of cycles
+ */
+{
+  return __atomic_load_n(&globalLifetime, __ATOMIC_RELAXED);
+}
+void SoundGenerator::setGlobalLifeTime(uint16_t lifeTime)
+/*
+ * Atomically stores the selected globalLifeTime
+ *
+ * :param wf: the life time in seconds
+ */
+{
+  __atomic_store_n(&globalLifetime, (lifeTime * 22000), __ATOMIC_RELAXED);
+}
 void SoundGenerator::sawtooth(uint8_t voiceIndx)
 /*
  * Produces a sawtooth Vout for a specific note related to a specific voice
