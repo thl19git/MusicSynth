@@ -14,10 +14,12 @@ SoundGenerator::SoundGenerator()
 {
   for (uint8_t i = 0; i < 12; i++)
   {
-    voices[i].free = true;
+    voices[i].status = 0;
+    voices[i].lifeTime = 0;
     voices[i].note = 0;
     voices[i].octave = 0;
     voices[i].phaseAcc = 0;
+    voices[i].intensityRightShift = 24;
   }
 }
 
@@ -36,16 +38,40 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if (voices[i].free)
+    // Check if voice is free
+    if (voices[i].status == 0)
     {
-      voices[i].free = false;
+      voices[i].status = 2;
       voices[i].note = note;
       voices[i].octave = octave;
+      voices[i].intensityRightShift = 24;
+
       break;
     }
   }
 
   xSemaphoreGive(notesMutex);
+}
+
+void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
+/*
+ * sets status of key to echo which gives it a limited time span before being removed
+ *
+ * :param octave: the octave of the key (1-7)
+ *
+ * :param note: the note of the key (0-11)
+ *
+ */
+{
+  for (uint8_t i = 0; i < 12; i++)
+  {
+    if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
+    {
+      voices[i].status = 1;
+      voices[i].lifeTime = getGlobalLifeTime();
+      // break;
+    }
+  }
 }
 
 void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
@@ -63,12 +89,13 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if (!voices[i].free && voices[i].octave == octave && voices[i].note == note)
+    if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
     {
-      voices[i].free = true;
+      voices[i].status = 0;
       voices[i].note = 0;
       voices[i].octave = 0;
       voices[i].phaseAcc = 0;
+      voices[i].lifeTime = 0;
       break;
     }
   }
@@ -83,16 +110,16 @@ int32_t SoundGenerator::getVout()
  * :return: the output voltage (pre volume shifting and dc-offset addition)
  */
 {
-  // uint8_t wf = __atomic_load_n(&waveform, __ATOMIC_RELAXED);
-  extern Knob knob0;
+  uint8_t wf = __atomic_load_n(&waveform, __ATOMIC_RELAXED);
   int32_t Vout = 0;
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if (!voices[i].free)
+    // Checking not free voice
+    if (voices[i].status != 0)
     {
 
-      switch (knob0.getRotation())
+      switch (wf)
       {
       // Sawtooth wave
       case 0:
@@ -114,33 +141,81 @@ int32_t SoundGenerator::getVout()
         triangular(i);
         break;
       }
+
+      // Checking if status is echo
+      if (voices[i].status == 1)
+      {
+        uint32_t localLifeTime = getGlobalLifeTime();
+        uint32_t scaleFactor = localLifeTime / 6;
+        if (voices[i].lifeTime == localLifeTime - scaleFactor || voices[i].lifeTime == localLifeTime - (2 * scaleFactor) || voices[i].lifeTime == localLifeTime - (3 * scaleFactor) || voices[i].lifeTime == localLifeTime - (4 * scaleFactor) || voices[i].lifeTime == localLifeTime - (5 * scaleFactor))
+        {
+          voices[i].intensityRightShift += 1;
+        }
+        Vout += voices[i].phaseAcc >> voices[i].intensityRightShift;
+
+        // Checking if lifetime is over
+        if (voices[i].lifeTime == 0)
+        {
+          // removing key
+          voices[i].status = 0;
+          voices[i].note = 0;
+          voices[i].octave = 0;
+          voices[i].phaseAcc = 0;
+        }
+        else
+        {
+          // counting down lifetime
+          voices[i].lifeTime -= 1;
+        }
+      }
+      else
+      {
+        Vout += voices[i].phaseAcc >> 24;
+      }
     }
-    Vout += voices[i].phaseAcc >> 24;
   }
 
   return Vout;
 }
 
-// uint8_t SoundGenerator::getWaveform()
-// /*
-//  * Atomically loads the current waveform type (0 = sawtooth)
-//  *
-//  * :return: the waveform id number (0-0)
-//  */
-// {
-//   return __atomic_load_n(&waveform, __ATOMIC_RELAXED);
-// }
+uint8_t SoundGenerator::getWaveform()
+/*
+ * Atomically loads the current waveform type (0 = sawtooth)
+ *
+ * :return: the waveform id number (0-0)
+ */
+{
+  return __atomic_load_n(&waveform, __ATOMIC_RELAXED);
+}
 
-// void SoundGenerator::setWaveform(uint8_t wf)
-// /*
-//  * Atomically stores the selected waveform type (0 = sawtooth)
-//  *
-//  * :param wf: the waveform id number (0-0)
-//  */
-// {
-//   __atomic_store_n(&waveform, wf, __ATOMIC_RELAXED);
-// }
+void SoundGenerator::setWaveform(uint8_t wf)
+/*
+ * Atomically stores the selected waveform type (0 = sawtooth)
+ *
+ * :param wf: the waveform id number (0-0)
+ */
+{
+  __atomic_store_n(&waveform, wf, __ATOMIC_RELAXED);
+}
 
+uint32_t SoundGenerator::getGlobalLifeTime()
+/*
+ * Atomically loads the current globalLifeTime
+ *
+ * :return: the adjusted global lifetime in terms of cycles
+ */
+{
+  return __atomic_load_n(&globalLifetime, __ATOMIC_RELAXED);
+}
+void SoundGenerator::setGlobalLifeTime(uint16_t lifeTime)
+/*
+ * Atomically stores the selected globalLifeTime
+ *
+ * :param wf: the life time in seconds
+ */
+{
+  __atomic_store_n(&globalLifetime, (lifeTime * 22000), __ATOMIC_RELAXED);
+}
 void SoundGenerator::sawtooth(uint8_t voiceIndx)
 /*
  * Produces a sawtooth Vout for a specific note related to a specific voice
