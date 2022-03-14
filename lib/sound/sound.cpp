@@ -338,6 +338,30 @@ void SoundGenerator::triangular(uint8_t voiceIndx)
   voices[voiceIndx].phaseAcc += (upOrDown * shift);
 }
 
+std::string SoundGenerator::getCurrentNotes()
+/*
+ * Gets the names of the current notes being played
+ *
+ * :return: string of current notes, space separated
+ */
+{
+  std::string notesStr = "";
+  
+  xSemaphoreTake(notesMutex, portMAX_DELAY);
+
+  for (uint8_t i = 0; i < 12; i++)
+  {
+    if(voices[i].status == 2)
+    {
+      notesStr += notes[voices[i].note] + std::to_string(voices[i].octave) + " ";
+    }
+  }
+
+  xSemaphoreGive(notesMutex);
+
+  return notesStr;
+}
+
 int32_t getShift()
 /*
  * Gets shift caused by movement in joystick x axis, applies shift to the current step size.
@@ -351,3 +375,4 @@ int32_t getShift()
 
   return stepSizes[noteIndx] + (-(joystick.x - 532) * 10000);
 }
+

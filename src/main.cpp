@@ -9,12 +9,10 @@
 volatile uint32_t keyArray[7];
 
 // Notes
-std::string notes[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-std::string note; // should be volatile
 volatile int8_t noteIndx;
 
 // Wave types
-std::string waveType[] = {"Sawtooth", "Sine", "Square", "Traingle"};
+std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
@@ -384,32 +382,35 @@ void displayUpdateTask(void *pvParameters)
     u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
 
     u8g2.setCursor(2, 10);
-    u8g2.print("Octave: ");
+    u8g2.print("Oct: ");
     u8g2.print(knob2.getRotation());
-
-    u8g2.setCursor(2, 20);
-    u8g2.print("Wave: ");
-    u8g2.print(waveType[soundGen.getWaveform()].c_str());
-
-    u8g2.setCursor(50, 30);
-    u8g2.print("Echo: ");
-    u8g2.print(knob0.getRotation());
-    u8g2.print("s");
 
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
 
     if (localReceiver)
     {
-      u8g2.setCursor(110, 30);
+      u8g2.setCursor(110, 10);
       u8g2.print("Rx");
-      u8g2.drawStr(2, 30, note.c_str());
-      u8g2.setCursor(70, 10);
+
+      u8g2.setCursor(60, 20);
       u8g2.print("Vol: ");
       u8g2.print(knob3.getRotation());
+      
+      u8g2.setCursor(42, 10);
+      u8g2.print("Wave: ");
+      u8g2.print(waveType[soundGen.getWaveform()].c_str());
+
+      u8g2.setCursor(2, 20);
+      u8g2.print("Echo: ");
+      u8g2.print(knob0.getRotation());
+      u8g2.print("s");
+
+      u8g2.setCursor(2, 30);
+      u8g2.print(soundGen.getCurrentNotes().c_str());
     }
     else
     {
-      u8g2.setCursor(110, 30);
+      u8g2.setCursor(110, 10);
       u8g2.print("Tx");
     }
 

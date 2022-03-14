@@ -136,6 +136,13 @@ public:
    *
    * :return: Vout for that specific voice that needs shifting and volume adjustment
    */
+
+  std::string getCurrentNotes();
+  /*
+  * Gets the names of the current notes being played
+  *
+  * :return: string of current notes, space separated
+  */
 };
 
 int32_t getShift(int32_t currentVoiceStepSize);
@@ -145,5 +152,7 @@ int32_t getShift(int32_t currentVoiceStepSize);
  *
  * :return: shifted step size.
  */
+
+
 
 #endif
