@@ -557,6 +557,10 @@ void setup()
 
   CAN_Start();
 
+  //Set the initial volume and octave
+  knob2.setRotation(4);
+  knob3.setRotation(8);
+
   vTaskStartScheduler();
 }
 
