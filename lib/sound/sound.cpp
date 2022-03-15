@@ -361,18 +361,3 @@ std::string SoundGenerator::getCurrentNotes()
 
   return notesStr;
 }
-
-int32_t getShift()
-/*
- * Gets shift caused by movement in joystick x axis, applies shift to the current step size.
- * Note: function only gets called from a the interupt function sampleISR(), and therefore global variables can be accessed with no worry about synchronisation erros
- *
- * :return: shifted step size.
- */
-{
-  extern int8_t noteIndx;
-  extern Joystick joystick;
-
-  return stepSizes[noteIndx] + (-(joystick.x - 532) * 10000);
-}
-

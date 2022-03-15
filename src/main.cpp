@@ -8,9 +8,6 @@
 // Key Array
 volatile uint32_t keyArray[7];
 
-// Notes
-volatile int8_t noteIndx;
-
 // Wave types
 const std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 
@@ -20,7 +17,6 @@ SemaphoreHandle_t CAN_TX_Semaphore;
 SemaphoreHandle_t notesMutex;
 
 // CAN network
-uint8_t RX_Message[8] = {0};
 QueueHandle_t msgInQ;
 QueueHandle_t msgOutQ;
 volatile uint8_t receiver = 1;
@@ -280,7 +276,6 @@ void scanKeysTask(void *pvParameters)
     // Check to see if knob2 (Tx/Rx) has been pressed (i.e. gone from 1 -> 0)
     if (localConnected && !knob2Button && prevKnob2Button)
     {
-      uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
       if (!localReceiver)
       {
         __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
@@ -518,11 +513,12 @@ void CAN_TX_Task(void *pvParameters)
 
 void decodeTask(void *pvParameters)
 {
+  uint8_t RX_Message[8] = {0};
   while (1)
   {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
-    uint8_t localConnected = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
     uint8_t action = RX_Message[0];
 
     if (action == 0x50)
