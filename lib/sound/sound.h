@@ -6,17 +6,28 @@
 struct Voice
 {
 
+  // State
   uint8_t status;
   /*
    * status = 0: free
    * status = 1: echo (dying)
    * status = 2: not free
    */
-  uint32_t lifeTime;
-  uint8_t intensityRightShift;
+
+  // note varaiables
   uint8_t octave;
   uint8_t note;
+
+  // Sawtooth
   int32_t phaseAcc;
+
+  // Square
+  uint16_t cyclesPerHalfPeriod;
+  uint8_t squareWaveCount;
+
+  // Echo variables
+  uint32_t lifeTime;           // echo life time
+  uint8_t intensityRightShift; // echo degrading intensity factor
 };
 
 class SoundGenerator
@@ -139,10 +150,10 @@ public:
 
   std::string getCurrentNotes();
   /*
-  * Gets the names of the current notes being played
-  *
-  * :return: string of current notes, space separated
-  */
+   * Gets the names of the current notes being played
+   *
+   * :return: string of current notes, space separated
+   */
 };
 
 int32_t getShift(int32_t currentVoiceStepSize);
@@ -152,7 +163,5 @@ int32_t getShift(int32_t currentVoiceStepSize);
  *
  * :return: shifted step size.
  */
-
-
 
 #endif
