@@ -12,14 +12,12 @@ volatile uint32_t keyArray[7];
 volatile int8_t noteIndx;
 
 // Wave types
-std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
+const std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
 SemaphoreHandle_t notesMutex;
-
-volatile int32_t currentStepSize;
 
 // CAN network
 uint8_t RX_Message[8] = {0};
