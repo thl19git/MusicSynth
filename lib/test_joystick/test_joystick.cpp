@@ -23,7 +23,7 @@ void test_joystickButton(void)
     TEST_ASSERT_EQUAL_INT8(1, testJoystick.getButton());
 
     // joystick should be 1 as defualt
-    testJoystick.updateJoystickButton();
+    // testJoystick.updateJoystickButton();
     TEST_ASSERT_EQUAL_INT8(1, testJoystick.getButton());
 }
 
