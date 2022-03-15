@@ -8,9 +8,6 @@
 // Key Array
 volatile uint32_t keyArray[7];
 
-// Notes
-volatile int8_t noteIndx;
-
 // Wave types
 std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 
