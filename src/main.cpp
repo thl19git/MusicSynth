@@ -8,9 +8,6 @@
 // Key Array
 volatile uint32_t keyArray[7];
 
-// Notes
-volatile int8_t noteIndx;
-
 // Wave types
 std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 
@@ -556,6 +553,10 @@ void setup()
   CAN_RegisterTX_ISR(CAN_TX_ISR);
 
   CAN_Start();
+
+  //Set the initial volume and octave
+  knob2.setRotation(4);
+  knob3.setRotation(8);
 
   vTaskStartScheduler();
 }

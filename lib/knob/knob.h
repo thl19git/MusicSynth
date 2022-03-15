@@ -56,9 +56,14 @@ public:
 
     int getRotation();
     /*
-     * Atomically loads the global knobRotation to prevent synchronisation erros
+     * Atomically loads the global knobRotation to prevent synchronisation errors
      *
      * :return: current value of global knobRotation
+     */
+
+    void setRotation(int8_t rotation);
+    /*
+     * Atomically stores the global knobRotation to prevent synchronisation errors
      */
 
     void updateButtonValue();
@@ -68,7 +73,7 @@ public:
 
     int getButton();
     /*
-     * Atomically loads the global knobButton to prevent synchronisation erros
+     * Atomically loads the global knobButton to prevent synchronisation errors
      *
      * :return: current value of global knobButton, 1 is button is not pressed, 0 is button is pressed
      */

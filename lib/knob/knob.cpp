@@ -180,7 +180,7 @@ int8_t Knob::calculateAndAssignval(uint8_t prevBit0, uint8_t prevBit1, uint8_t b
 
 int Knob::getRotation()
 /*
- * Atomically loads the global knobRotation to prevent synchronisation erros
+ * Atomically loads the global knobRotation to prevent synchronisation errors
  *
  * :return: current value of global knobRotation
  */
@@ -188,9 +188,17 @@ int Knob::getRotation()
     return __atomic_load_n(&knobRotation, __ATOMIC_RELAXED) / 2;
 }
 
+void Knob::setRotation(int8_t rotation)
+/*
+ * Atomically stores the global knobRotation to prevent synchronisation errors
+ */
+{
+    __atomic_store_n(&knobRotation, rotation*2, __ATOMIC_RELAXED);
+}
+
 int Knob::getButton()
 /*
- * Atomically loads the global knobButton to prevent synchronisation erros
+ * Atomically loads the global knobButton to prevent synchronisation errors
  *
  * :return: current value of global knobButton, 1 is button is not pressed, 0 is button is pressed
  */
