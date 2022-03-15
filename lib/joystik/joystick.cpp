@@ -7,6 +7,16 @@
 
 using namespace std;
 
+Joystick::Joystick()
+/*
+ * class constructor to set the joystick button to correct inital value
+ */
+{
+    button = 1;
+    x = 0;
+    y = 0;
+}
+
 void Joystick::updateJoystickButton()
 /*
  * Gets data from joystic button and stores it in a global variable

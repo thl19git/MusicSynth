@@ -394,3 +394,4 @@ std::string SoundGenerator::getCurrentNotes()
 
   return notesStr;
 }
+
