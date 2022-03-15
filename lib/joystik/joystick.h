@@ -11,7 +11,11 @@ class Joystick
     volatile uint32_t y;
 
 public:
-        void updateJoystickButton();
+    Joystick();
+    /*
+     * class constructor to set the joystick button to correct inital value
+     */
+    void updateJoystickButton();
     /*
      * Gets data from joystic pins and stores it in global variables
      */

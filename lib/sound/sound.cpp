@@ -253,7 +253,7 @@ int32_t getShift(int32_t currentVoiceStepSize)
 {
   extern Joystick joystick;
 
-  return currentVoiceStepSize + (-(joystick.x - 532) * 10000);
+  return currentVoiceStepSize + (-(joystick.getX() - 532) * 10000);
 }
 
 void SoundGenerator::sine(uint8_t voiceIndx)
@@ -346,12 +346,12 @@ std::string SoundGenerator::getCurrentNotes()
  */
 {
   std::string notesStr = "";
-  
+
   xSemaphoreTake(notesMutex, portMAX_DELAY);
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if(voices[i].status == 2)
+    if (voices[i].status == 2)
     {
       notesStr += notes[voices[i].note] + std::to_string(voices[i].octave) + " ";
     }
@@ -373,6 +373,5 @@ int32_t getShift()
   extern int8_t noteIndx;
   extern Joystick joystick;
 
-  return stepSizes[noteIndx] + (-(joystick.x - 532) * 10000);
+  return stepSizes[noteIndx] + (-(joystick.getX() - 532) * 10000);
 }
-

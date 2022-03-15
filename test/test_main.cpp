@@ -2,6 +2,7 @@
 #include <unity.h>
 #include "knob.h"
 #include "test_joystick.h"
+#include "main.h"
 
 // void setUp(void) {
 // // set stuff up here

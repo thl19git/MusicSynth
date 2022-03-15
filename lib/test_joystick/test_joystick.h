@@ -1,4 +1,5 @@
 #include <iostream>
+#include "main.h"
 
 #ifndef TEST_JOYSTICK_H
 #define TEST_JOYSTICK_H
@@ -8,29 +9,13 @@ void test_Joystick(void);
  * Tests all joystick testing functions
  */
 
-void test_updateJoystickButton(void);
+void test_joystickButton(void);
 /*
- * tests the updateJoystickButton function from the joystick class.
+ * tests the joystick button.
  */
-
-void test_updateJoystickPosition(void);
+void test_joystickPosition(void);
 /*
- * tests the updateJoystickPosition function from the joystick class.
- */
-
-void test_getX(void);
-/*
- * tests the getX function from the joystick class.
- */
-
-void test_getY(void);
-/*
- * tests the getY function from the joystick class.
- */
-
-void test_getButton(void);
-/*
- * tests the getButton function from the joystick class.
+ * tests the joystick Position.
  */
 
 #endif
