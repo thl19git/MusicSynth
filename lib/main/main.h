@@ -44,6 +44,7 @@ const int32_t stepSizes[] = {51076056, 54113197, 57330935, 60740010, 64351798, 6
 const std::string notes[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 // Frequencies
+const int16_t sampleFrequency = 22000;
 const int32_t frequencies[] = {262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494};
 
 void setOutMuxBit(const uint8_t bitIdx, const bool value);
