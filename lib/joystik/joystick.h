@@ -7,11 +7,11 @@ class Joystick
 {
 
     volatile int8_t button;
-
-public:
     volatile uint32_t x;
     volatile uint32_t y;
-    void updateJoystickButton();
+
+public:
+        void updateJoystickButton();
     /*
      * Gets data from joystic pins and stores it in global variables
      */

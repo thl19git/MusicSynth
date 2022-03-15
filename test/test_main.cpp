@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <unity.h>
 #include "knob.h"
+#include "test_joystick.h"
 
 // void setUp(void) {
 // // set stuff up here
@@ -43,16 +44,16 @@ void test_calculateAndAssignval(void)
     TEST_ASSERT_EQUAL_INT8(0, knobTest.calculateAndAssignval(0, 0, 0, 0, 1));
     TEST_ASSERT_EQUAL_INT8(-1, knobTest.calculateAndAssignval(0, 0, 0, 1, 1));
     TEST_ASSERT_EQUAL_INT8(+1, knobTest.calculateAndAssignval(0, 0, 1, 0, 1));
-    //TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(0, 0, 1, 1, 1));
+    // TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(0, 0, 1, 1, 1));
     TEST_ASSERT_EQUAL_INT8(+1, knobTest.calculateAndAssignval(0, 1, 0, 0, 1));
     TEST_ASSERT_EQUAL_INT8(0, knobTest.calculateAndAssignval(0, 1, 0, 1, 1));
-    //TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(0, 1, 1, 0, 1));
+    // TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(0, 1, 1, 0, 1));
     TEST_ASSERT_EQUAL_INT8(-1, knobTest.calculateAndAssignval(0, 1, 1, 1, 1));
     TEST_ASSERT_EQUAL_INT8(-1, knobTest.calculateAndAssignval(1, 0, 0, 0, 1));
-    //TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(1, 0, 0, 1, 1));
+    // TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(1, 0, 0, 1, 1));
     TEST_ASSERT_EQUAL_INT8(0, knobTest.calculateAndAssignval(1, 0, 1, 0, 1));
     TEST_ASSERT_EQUAL_INT8(+1, knobTest.calculateAndAssignval(1, 0, 1, 1, 1));
-    //TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(1, 1, 0, 0, 1));
+    // TEST_ASSERT_EQUAL_INT8(+2, knobTest.calculateAndAssignval(1, 1, 0, 0, 1));
     TEST_ASSERT_EQUAL_INT8(+1, knobTest.calculateAndAssignval(1, 1, 0, 1, 1));
     TEST_ASSERT_EQUAL_INT8(-1, knobTest.calculateAndAssignval(1, 1, 1, 0, 1));
     TEST_ASSERT_EQUAL_INT8(0, knobTest.calculateAndAssignval(1, 1, 1, 1, 1));
@@ -65,7 +66,6 @@ void test_calculateAndAssignval(void)
     TEST_ASSERT_EQUAL_INT8(0, knobTest.calculateAndAssignval(0, 0, 0, 2, 1));
     TEST_ASSERT_EQUAL_INT8(0, knobTest.calculateAndAssignval(2, 2, 2, 2, 1));
     TEST_ASSERT_EQUAL_INT8(2, knobTest.calculateAndAssignval(2, 0, 0, 0, 1));
-
 
     // TODO: add other cases you can think of
 }
@@ -85,6 +85,9 @@ void setup()
 
     // Knob example
     RUN_TEST(test_calculateAndAssignval);
+
+    // joystick
+    test_Joystick();
 
     // TODO: Add test here
 
