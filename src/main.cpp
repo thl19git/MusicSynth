@@ -14,7 +14,6 @@ std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
-SemaphoreHandle_t notesMutex;
 
 volatile int32_t currentStepSize;
 
@@ -462,7 +461,6 @@ void setup()
   // put your setup code here, to run once:
 
   keyArrayMutex = xSemaphoreCreateMutex();
-  notesMutex = xSemaphoreCreateMutex();
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3, 3);
 
   TIM_TypeDef *Instance = TIM1;

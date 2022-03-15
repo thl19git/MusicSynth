@@ -5,8 +5,6 @@
 #include "knob.h"
 #include "main.h"
 
-extern SemaphoreHandle_t notesMutex;
-
 SoundGenerator::SoundGenerator()
 /*
  * Constructor for the SoundGenerator class
@@ -36,7 +34,7 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
  */
 {
   // Register the key press in the first available voice
-  xSemaphoreTake(notesMutex, portMAX_DELAY);
+  taskENTER_CRITICAL();
 
   for (uint8_t i = 0; i < 12; i++)
   {
@@ -62,7 +60,7 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
     }
   }
 
-  xSemaphoreGive(notesMutex);
+  taskEXIT_CRITICAL();
 }
 
 void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
@@ -75,6 +73,8 @@ void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
  *
  */
 {
+  taskENTER_CRITICAL();
+
   for (uint8_t i = 0; i < 12; i++)
   {
     if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
@@ -84,6 +84,8 @@ void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
       // break;
     }
   }
+
+  taskEXIT_CRITICAL();
 }
 
 void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
@@ -97,7 +99,7 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
  */
 {
   // Remove the first instance of a key press from the voices
-  xSemaphoreTake(notesMutex, portMAX_DELAY);
+  taskENTER_CRITICAL();
 
   for (uint8_t i = 0; i < 12; i++)
   {
@@ -113,7 +115,7 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
     }
   }
 
-  xSemaphoreGive(notesMutex);
+  taskEXIT_CRITICAL();
 }
 
 int32_t SoundGenerator::getVout()
@@ -220,6 +222,7 @@ uint32_t SoundGenerator::getGlobalLifeTime()
 {
   return __atomic_load_n(&globalLifetime, __ATOMIC_RELAXED);
 }
+
 void SoundGenerator::setGlobalLifeTime(uint16_t lifeTime)
 /*
  * Atomically stores the selected globalLifeTime
@@ -229,6 +232,7 @@ void SoundGenerator::setGlobalLifeTime(uint16_t lifeTime)
 {
   __atomic_store_n(&globalLifetime, (lifeTime * 22000), __ATOMIC_RELAXED);
 }
+
 void SoundGenerator::sawtooth(uint8_t voiceIndx)
 /*
  * Produces a sawtooth Vout for a specific note related to a specific voice
@@ -307,7 +311,7 @@ void SoundGenerator::square(uint8_t voiceIndx)
 
   if (voices[voiceIndx].phaseAcc == 0)
   {
-    voices[voiceIndx].phaseAcc = pow(2, 31);
+    voices[voiceIndx].phaseAcc = 2147483647;
   }
 
   int32_t shift = voices[voiceIndx].cyclesPerHalfPeriod + ((joystick.getX() / 100) - 5);
@@ -380,7 +384,7 @@ std::string SoundGenerator::getCurrentNotes()
 {
   std::string notesStr = "";
 
-  xSemaphoreTake(notesMutex, portMAX_DELAY);
+  taskENTER_CRITICAL();
 
   for (uint8_t i = 0; i < 12; i++)
   {
@@ -390,7 +394,7 @@ std::string SoundGenerator::getCurrentNotes()
     }
   }
 
-  xSemaphoreGive(notesMutex);
+  taskEXIT_CRITICAL();
 
   return notesStr;
 }
