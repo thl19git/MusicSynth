@@ -27,6 +27,7 @@ QueueHandle_t msgInQ;
 QueueHandle_t msgOutQ;
 volatile uint8_t receiver = 1;
 volatile uint8_t connected = 0;
+volatile uint8_t eastConnection = 0;
 
 // Knobs
 Knob knob0(0, 0, 10); // Rotation: Echo || Button: Sound wave
@@ -342,11 +343,16 @@ void autoMultiSynthTask(void *pvParameters)
       delayMicroseconds(3);
       int8_t east = digitalRead(C3_PIN);
 
-      if (east & west)
+      if (east)
       {
-        //Synth is unconnected
-        __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
-        __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+        //East synth has been removed
+        __atomic_store_n(&eastConnection, 0, __ATOMIC_RELAXED);
+        if (west)
+        {
+          //Synth is unconnected
+          __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
+          __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+        }
       }
     }
     else
@@ -364,9 +370,6 @@ void autoMultiSynthTask(void *pvParameters)
         TX_Message[0] = 'C';
         TX_Message[1] = knob2.getRotation() - 1;
         xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-
-        //Set connected global variable to 1 = true
-        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
       }
     }
   }
@@ -535,20 +538,36 @@ void decodeTask(void *pvParameters)
       if (localConnected)
       {
         //Synth is already connected
-        //Return a master message, with the required octave
-        uint8_t TX_Message[8];
-        TX_Message[0] = 'M';
-        TX_Message[1] = knob2.getRotation() + 1;
-        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        //Check to see if there is a new east connection
+        uint8_t localEastConnection = __atomic_load_n(&eastConnection, __ATOMIC_RELAXED);
+        if (!localEastConnection)
+        {
+          setRow(6);
+          delayMicroseconds(3);
+          int8_t east = digitalRead(C3_PIN);
+
+          if (!east)
+          {
+            //New east connection found
+            __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
+
+            //Return a master message, with the required octave
+              uint8_t TX_Message[8];
+              TX_Message[0] = 'M';
+              TX_Message[1] = knob2.getRotation() + 1;
+              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+          }
+        }
       }
       else
       {
         //Synth is unconnected - update octave, Tx/Rx, connected
         int8_t octave = RX_Message[1];
         knob2.setRotation(octave);
-        __atomic_store_n(&localReceiver, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
         __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
-
+        __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
+      
         //Return a "slave success" message
         uint8_t TX_Message[8];
         TX_Message[0] = 'S';
@@ -559,21 +578,30 @@ void decodeTask(void *pvParameters)
     {
       //Slave
       //Slave successfully connected - this synth is receiver
-      __atomic_store_n(&localReceiver, 1, __ATOMIC_RELAXED);
+      if (!localConnected)
+      {
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+      }
+      
     }
     else if (action == 0x4d)
     {
       //Master
       //Synth should be transmitter, update octave
-      int8_t octave = RX_Message[1];
-      knob2.setRotation(octave);
-      __atomic_store_n(&localReceiver, 0, __ATOMIC_RELAXED);
+      if (!localConnected)
+      {
+        int8_t octave = RX_Message[1];
+        knob2.setRotation(octave);
+        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+      }
+      
     }
     else if (action == 0x54)
     {
       //Transmitter
       //Synth should become a transmitter
-      __atomic_store_n(&localReceiver, 0, __ATOMIC_RELAXED);
+      __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
     }
   }
 }
