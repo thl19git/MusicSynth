@@ -28,6 +28,7 @@ QueueHandle_t msgOutQ;
 volatile uint8_t receiver = 1;
 volatile uint8_t connected = 0;
 volatile uint8_t eastConnection = 0;
+volatile uint8_t westConnection = 0;
 
 // Knobs
 Knob knob0(0, 0, 10); // Rotation: Echo || Button: Sound wave
@@ -345,32 +346,47 @@ void autoMultiSynthTask(void *pvParameters)
 
       if (east)
       {
-        //East synth has been removed
+        //No east synth
         __atomic_store_n(&eastConnection, 0, __ATOMIC_RELAXED);
-        if (west)
-        {
-          //Synth is unconnected
-          __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
-          __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
-        }
       }
+      if (west)
+      {
+        //No west synth
+        __atomic_store_n(&westConnection, 0, __ATOMIC_RELAXED);
+      }
+      if (east && west)
+      {
+        //Synth is disconnected
+        __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+      }
+      
     }
     else
     {
-      //Select the fifth row, 3rd column for West Detect
-      setRow(5);
-      delayMicroseconds(3);
-      int8_t west = digitalRead(C3_PIN);
+      //Check if the west is connected
+      uint8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
 
-      if (!west)
+      if(!localWestConnection)
       {
-        //New connection to the west identified
-        //Transmit connection message with octave - 1
-        uint8_t TX_Message[8];
-        TX_Message[0] = 'C';
-        TX_Message[1] = knob2.getRotation() - 1;
-        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+        //West previously unconnected
+        //Select the fifth row, 3rd column for West Detect
+        setRow(5);
+        delayMicroseconds(3);
+        int8_t west = digitalRead(C3_PIN);
+
+        if (!west)
+        {
+          //New connection to the west identified
+          //Transmit connection message with octave - 1
+          uint8_t TX_Message[8];
+          TX_Message[0] = 'C';
+          TX_Message[1] = knob2.getRotation() - 1;
+          xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+          __atomic_store_n(&westConnection, 1, __ATOMIC_RELAXED);
+        }
       }
+      
     }
   }
 }
