@@ -26,6 +26,7 @@ uint8_t RX_Message[8] = {0};
 QueueHandle_t msgInQ;
 QueueHandle_t msgOutQ;
 volatile uint8_t receiver = 1;
+volatile uint8_t connected = 0;
 
 // Knobs
 Knob knob0(0, 0, 10); // Rotation: Echo || Button: Sound wave
@@ -274,18 +275,18 @@ void scanKeysTask(void *pvParameters)
     knob2.updateButtonValue();
 
     uint8_t knob2Button = knob2.getButton();
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
 
     // Check to see if knob2 (Tx/Rx) has been pressed (i.e. gone from 1 -> 0)
-    if (!knob2Button && prevKnob2Button)
+    if (localConnected && !knob2Button && prevKnob2Button)
     {
       uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
-      if (localReceiver)
-      {
-        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
-      }
-      else
+      if (!localReceiver)
       {
         __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+        uint8_t TX_Message[8];
+        TX_Message[0] = 'T';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
       }
     }
     prevKnob2Button = knob2Button;
@@ -307,6 +308,67 @@ void scanKeysTask(void *pvParameters)
       soundGen.setWaveform(localSoundWave);
     }
     prevKnob0Button = knob0Button;
+  }
+}
+
+void autoMultiSynthTask(void *pvParameters)
+/*
+ * Task to detect other keyboards and put the appropriate messages on the queue
+ *
+ * :param pvParameters: Thread parameter information
+ */
+{
+  // Initiation interval
+  const TickType_t xFrequency = 500 / portTICK_PERIOD_MS;
+
+  // Tick count of last initiation
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+
+  while (1)
+  {
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
+    if (localConnected)
+    {
+      //Check to see if the synth has been disconnected
+      //Select the fifth row, 3rd column for West Detect
+      setRow(5);
+      delayMicroseconds(3);
+      int8_t west = digitalRead(C3_PIN);
+
+      //Select the sixth row, 3rd column for East Detect
+      setRow(6);
+      delayMicroseconds(3);
+      int8_t east = digitalRead(C3_PIN);
+
+      if (east & west)
+      {
+        //Synth is unconnected
+        __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+      }
+    }
+    else
+    {
+      //Select the fifth row, 3rd column for West Detect
+      setRow(5);
+      delayMicroseconds(3);
+      int8_t west = digitalRead(C3_PIN);
+
+      if (!west)
+      {
+        //New connection to the west identified
+        //Transmit connection message with octave - 1
+        uint8_t TX_Message[8];
+        TX_Message[0] = 'C';
+        TX_Message[1] = knob2.getRotation() - 1;
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+
+        //Set connected global variable to 1 = true
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+      }
+    }
   }
 }
 
@@ -386,12 +448,10 @@ void displayUpdateTask(void *pvParameters)
     u8g2.print(knob2.getRotation());
 
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
 
-    if (localReceiver)
+    if (!localConnected || (localConnected && localReceiver))
     {
-      u8g2.setCursor(110, 10);
-      u8g2.print("Rx");
-
       u8g2.setCursor(60, 20);
       u8g2.print("Vol: ");
       u8g2.print(knob3.getRotation());
@@ -408,7 +468,14 @@ void displayUpdateTask(void *pvParameters)
       u8g2.setCursor(2, 30);
       u8g2.print(soundGen.getCurrentNotes().c_str());
     }
-    else
+    
+    if (localConnected && localReceiver)
+    {
+      u8g2.setCursor(110, 10);
+      u8g2.print("Rx");
+    }
+
+    if (localConnected && !localReceiver)
     {
       u8g2.setCursor(110, 10);
       u8g2.print("Tx");
@@ -438,22 +505,75 @@ void decodeTask(void *pvParameters)
   {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
-    if (localReceiver)
+    uint8_t localConnected = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
+    uint8_t action = RX_Message[0];
+
+    if (action == 0x50)
     {
-      uint8_t action = RX_Message[0];
-      uint8_t octave = RX_Message[1];
-      uint8_t note = RX_Message[2];
-      if (action == 0x50)
+      //Key pressed
+      if (localReceiver)
       {
-        // Press
+        uint8_t octave = RX_Message[1];
+        uint8_t note = RX_Message[2];
         soundGen.addKey(octave, note);
+      }
+    }
+    else if (action == 0x52)
+    {
+      //Key released
+      if (localReceiver)
+      {
+        uint8_t octave = RX_Message[1];
+        uint8_t note = RX_Message[2];
+        soundGen.echoKey(octave, note);
+      }
+    }
+    else if (action == 0x43)
+    {
+      //Connect
+      //Check to see if synth is already connected
+      if (localConnected)
+      {
+        //Synth is already connected
+        //Return a master message, with the required octave
+        uint8_t TX_Message[8];
+        TX_Message[0] = 'M';
+        TX_Message[1] = knob2.getRotation() + 1;
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
       }
       else
       {
-        // Release
-        // soundGen.removeKey(octave, note);
-        soundGen.echoKey(octave, note);
+        //Synth is unconnected - update octave, Tx/Rx, connected
+        int8_t octave = RX_Message[1];
+        knob2.setRotation(octave);
+        __atomic_store_n(&localReceiver, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+
+        //Return a "slave success" message
+        uint8_t TX_Message[8];
+        TX_Message[0] = 'S';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
       }
+    }
+    else if (action == 0x53)
+    {
+      //Slave
+      //Slave successfully connected - this synth is receiver
+      __atomic_store_n(&localReceiver, 1, __ATOMIC_RELAXED);
+    }
+    else if (action == 0x4d)
+    {
+      //Master
+      //Synth should be transmitter, update octave
+      int8_t octave = RX_Message[1];
+      knob2.setRotation(octave);
+      __atomic_store_n(&localReceiver, 0, __ATOMIC_RELAXED);
+    }
+    else if (action == 0x54)
+    {
+      //Transmitter
+      //Synth should become a transmitter
+      __atomic_store_n(&localReceiver, 0, __ATOMIC_RELAXED);
     }
   }
 }
@@ -488,6 +608,15 @@ void setup()
       NULL,             /* Parameter passed into the task */
       2,                /* Task priority */
       &joystickHandle); /* Pointer to store the task handle */
+
+  TaskHandle_t autoMultiSynthHandle = NULL;
+  xTaskCreate(
+      autoMultiSynthTask,     /* Function that implements the task */
+      "autoMultiSynth",       /* Text name for the task */
+      64,               /* Stack size in words, not bytes */
+      NULL,             /* Parameter passed into the task */
+      1,                /* Task priority */
+      &autoMultiSynthHandle); /* Pointer to store the task handle */
 
   TaskHandle_t displayUpdateTaskHandle = NULL;
   xTaskCreate(
