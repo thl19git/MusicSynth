@@ -310,7 +310,7 @@ void SoundGenerator::square(uint8_t voiceIndx)
     voices[voiceIndx].phaseAcc = pow(2, 31);
   }
 
-  int32_t shift = voices[voiceIndx].cyclesPerHalfPeriod + ((joystick.x / 100) - 5);
+  int32_t shift = voices[voiceIndx].cyclesPerHalfPeriod + ((joystick.getX() / 100) - 5);
 
   if (voices[voiceIndx].squareWaveCount == shift)
   {
@@ -368,7 +368,7 @@ int32_t getShift(int32_t currentVoiceStepSize)
 {
   extern Joystick joystick;
 
-  return currentVoiceStepSize + (-(joystick.x - 532) * 10000);
+  return currentVoiceStepSize + (-(joystick.getX() - 532) * 10000);
 }
 
 std::string SoundGenerator::getCurrentNotes()
@@ -394,4 +394,3 @@ std::string SoundGenerator::getCurrentNotes()
 
   return notesStr;
 }
-
