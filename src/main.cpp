@@ -13,6 +13,7 @@ const std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
+SemaphoreHandle_t connectionMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
 SemaphoreHandle_t notesMutex;
 
@@ -201,50 +202,47 @@ void scanKeysTask(void *pvParameters)
 
     xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
 
-    if (localReceiver)
+    uint8_t octave = knob2.getRotation();
+    for (uint8_t i = 0; i < 3; i++)
     {
-      uint8_t octave = knob2.getRotation();
-      for (uint8_t i = 0; i < 3; i++)
+      uint8_t keys = localKeyArray[i];
+      uint8_t oldKeys = keyArray[i];
+      for (uint8_t j = 0; j < 4; j++)
       {
-        uint8_t keys = localKeyArray[i];
-        uint8_t oldKeys = keyArray[i];
-        for (uint8_t j = 0; j < 4; j++)
+        uint8_t mask = 1 << j;
+        if ((keys & mask) ^ (oldKeys & mask))
         {
-          uint8_t mask = 1 << j;
-          if ((keys & mask) ^ (oldKeys & mask))
+          if (keys & mask)
           {
-            if (keys & mask)
+            // Key has been released
+            if (localReceiver)
             {
-              // Key has been released
-              if (localReceiver)
-              {
-                // soundGen.removeKey(octave, i * 4 + j);
-                soundGen.echoKey(octave, i * 4 + j);
-              }
-              else
-              {
-                uint8_t TX_Message[8];
-                TX_Message[0] = 'R';
-                TX_Message[1] = knob2.getRotation();
-                TX_Message[2] = i * 4 + j;
-                xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-              }
+              // soundGen.removeKey(octave, i * 4 + j);
+              soundGen.echoKey(octave, i * 4 + j);
             }
             else
             {
-              // Key has been pressed
-              if (localReceiver)
-              {
-                soundGen.addKey(octave, i * 4 + j);
-              }
-              else
-              {
-                uint8_t TX_Message[8];
-                TX_Message[0] = 'P';
-                TX_Message[1] = knob2.getRotation();
-                TX_Message[2] = i * 4 + j;
-                xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-              }
+              uint8_t TX_Message[8];
+              TX_Message[0] = 'R';
+              TX_Message[1] = knob2.getRotation();
+              TX_Message[2] = i * 4 + j;
+              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+            }
+          }
+          else
+          {
+            // Key has been pressed
+            if (localReceiver)
+            {
+              soundGen.addKey(octave, i * 4 + j);
+            }
+            else
+            {
+              uint8_t TX_Message[8];
+              TX_Message[0] = 'P';
+              TX_Message[1] = knob2.getRotation();
+              TX_Message[2] = i * 4 + j;
+              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
             }
           }
         }
@@ -323,15 +321,31 @@ void autoMultiSynthTask(void *pvParameters)
   {
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
 
+    xSemaphoreTake(connectionMutex, portMAX_DELAY);
+
+    //Check if the west is connected
+    uint8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
+
+    //Select the fifth row, 3rd column for West Detect
+    setRow(5);
+    delayMicroseconds(3);
+    int8_t west = digitalRead(C3_PIN);
+
+    if(!localWestConnection && !west)
+    {
+      //New connection to the west identified
+      //Transmit connection message with octave - 1
+      uint8_t TX_Message[8];
+      TX_Message[0] = 'C';
+      TX_Message[1] = knob2.getRotation() - 1;
+      xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+      __atomic_store_n(&westConnection, 1, __ATOMIC_RELAXED);
+    }
+
     uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
     if (localConnected)
     {
       //Check to see if the synth has been disconnected
-      //Select the fifth row, 3rd column for West Detect
-      setRow(5);
-      delayMicroseconds(3);
-      int8_t west = digitalRead(C3_PIN);
-
       //Select the sixth row, 3rd column for East Detect
       setRow(6);
       delayMicroseconds(3);
@@ -355,32 +369,8 @@ void autoMultiSynthTask(void *pvParameters)
       }
       
     }
-    else
-    {
-      //Check if the west is connected
-      uint8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
 
-      if(!localWestConnection)
-      {
-        //West previously unconnected
-        //Select the fifth row, 3rd column for West Detect
-        setRow(5);
-        delayMicroseconds(3);
-        int8_t west = digitalRead(C3_PIN);
-
-        if (!west)
-        {
-          //New connection to the west identified
-          //Transmit connection message with octave - 1
-          uint8_t TX_Message[8];
-          TX_Message[0] = 'C';
-          TX_Message[1] = knob2.getRotation() - 1;
-          xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-          __atomic_store_n(&westConnection, 1, __ATOMIC_RELAXED);
-        }
-      }
-      
-    }
+    xSemaphoreGive(connectionMutex);
   }
 }
 
@@ -517,6 +507,9 @@ void decodeTask(void *pvParameters)
   while (1)
   {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
+
+    xSemaphoreTake(connectionMutex, portMAX_DELAY);
+
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
     uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
     uint8_t action = RX_Message[0];
@@ -613,6 +606,8 @@ void decodeTask(void *pvParameters)
       //Synth should become a transmitter
       __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
     }
+
+    xSemaphoreGive(connectionMutex);
   }
 }
 
@@ -623,6 +618,7 @@ void setup()
   // put your setup code here, to run once:
 
   keyArrayMutex = xSemaphoreCreateMutex();
+  connectionMutex = xSemaphoreCreateMutex();
   notesMutex = xSemaphoreCreateMutex();
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3, 3);
 
