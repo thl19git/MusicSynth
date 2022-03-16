@@ -9,19 +9,20 @@
 volatile uint32_t keyArray[7];
 
 // Wave types
-std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
+const std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 
 // Mutex
 SemaphoreHandle_t keyArrayMutex;
+SemaphoreHandle_t connectionMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
 
-volatile int32_t currentStepSize;
-
 // CAN network
-uint8_t RX_Message[8] = {0};
 QueueHandle_t msgInQ;
 QueueHandle_t msgOutQ;
 volatile uint8_t receiver = 1;
+volatile uint8_t connected = 0;
+volatile uint8_t eastConnection = 0;
+volatile uint8_t westConnection = 0;
 
 // Knobs
 Knob knob0(0, 0, 10); // Rotation: Echo || Button: Sound wave
@@ -200,50 +201,47 @@ void scanKeysTask(void *pvParameters)
 
     xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
 
-    if (localReceiver)
+    uint8_t octave = knob2.getRotation();
+    for (uint8_t i = 0; i < 3; i++)
     {
-      uint8_t octave = knob2.getRotation();
-      for (uint8_t i = 0; i < 3; i++)
+      uint8_t keys = localKeyArray[i];
+      uint8_t oldKeys = keyArray[i];
+      for (uint8_t j = 0; j < 4; j++)
       {
-        uint8_t keys = localKeyArray[i];
-        uint8_t oldKeys = keyArray[i];
-        for (uint8_t j = 0; j < 4; j++)
+        uint8_t mask = 1 << j;
+        if ((keys & mask) ^ (oldKeys & mask))
         {
-          uint8_t mask = 1 << j;
-          if ((keys & mask) ^ (oldKeys & mask))
+          if (keys & mask)
           {
-            if (keys & mask)
+            // Key has been released
+            if (localReceiver)
             {
-              // Key has been released
-              if (localReceiver)
-              {
-                // soundGen.removeKey(octave, i * 4 + j);
-                soundGen.echoKey(octave, i * 4 + j);
-              }
-              else
-              {
-                uint8_t TX_Message[8];
-                TX_Message[0] = 'R';
-                TX_Message[1] = knob2.getRotation();
-                TX_Message[2] = i * 4 + j;
-                xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-              }
+              // soundGen.removeKey(octave, i * 4 + j);
+              soundGen.echoKey(octave, i * 4 + j);
             }
             else
             {
-              // Key has been pressed
-              if (localReceiver)
-              {
-                soundGen.addKey(octave, i * 4 + j);
-              }
-              else
-              {
-                uint8_t TX_Message[8];
-                TX_Message[0] = 'P';
-                TX_Message[1] = knob2.getRotation();
-                TX_Message[2] = i * 4 + j;
-                xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-              }
+              uint8_t TX_Message[8];
+              TX_Message[0] = 'R';
+              TX_Message[1] = knob2.getRotation();
+              TX_Message[2] = i * 4 + j;
+              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+            }
+          }
+          else
+          {
+            // Key has been pressed
+            if (localReceiver)
+            {
+              soundGen.addKey(octave, i * 4 + j);
+            }
+            else
+            {
+              uint8_t TX_Message[8];
+              TX_Message[0] = 'P';
+              TX_Message[1] = knob2.getRotation();
+              TX_Message[2] = i * 4 + j;
+              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
             }
           }
         }
@@ -270,18 +268,17 @@ void scanKeysTask(void *pvParameters)
     knob2.updateButtonValue();
 
     uint8_t knob2Button = knob2.getButton();
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
 
     // Check to see if knob2 (Tx/Rx) has been pressed (i.e. gone from 1 -> 0)
-    if (!knob2Button && prevKnob2Button)
+    if (localConnected && !knob2Button && prevKnob2Button)
     {
-      uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
-      if (localReceiver)
-      {
-        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
-      }
-      else
+      if (!localReceiver)
       {
         __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+        uint8_t TX_Message[8];
+        TX_Message[0] = 'T';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
       }
     }
     prevKnob2Button = knob2Button;
@@ -303,6 +300,76 @@ void scanKeysTask(void *pvParameters)
       soundGen.setWaveform(localSoundWave);
     }
     prevKnob0Button = knob0Button;
+  }
+}
+
+void autoMultiSynthTask(void *pvParameters)
+/*
+ * Task to detect other keyboards and put the appropriate messages on the queue
+ *
+ * :param pvParameters: Thread parameter information
+ */
+{
+  // Initiation interval
+  const TickType_t xFrequency = 500 / portTICK_PERIOD_MS;
+
+  // Tick count of last initiation
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+
+  while (1)
+  {
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+    xSemaphoreTake(connectionMutex, portMAX_DELAY);
+
+    //Check if the west is connected
+    uint8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
+
+    //Select the fifth row, 3rd column for West Detect
+    setRow(5);
+    delayMicroseconds(3);
+    int8_t west = digitalRead(C3_PIN);
+
+    if(!localWestConnection && !west)
+    {
+      //New connection to the west identified
+      //Transmit connection message with octave - 1
+      uint8_t TX_Message[8];
+      TX_Message[0] = 'C';
+      TX_Message[1] = knob2.getRotation() - 1;
+      xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+      __atomic_store_n(&westConnection, 1, __ATOMIC_RELAXED);
+    }
+
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
+    if (localConnected)
+    {
+      //Check to see if the synth has been disconnected
+      //Select the sixth row, 3rd column for East Detect
+      setRow(6);
+      delayMicroseconds(3);
+      int8_t east = digitalRead(C3_PIN);
+
+      if (east)
+      {
+        //No east synth
+        __atomic_store_n(&eastConnection, 0, __ATOMIC_RELAXED);
+      }
+      if (west)
+      {
+        //No west synth
+        __atomic_store_n(&westConnection, 0, __ATOMIC_RELAXED);
+      }
+      if (east && west)
+      {
+        //Synth is disconnected
+        __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+      }
+      
+    }
+
+    xSemaphoreGive(connectionMutex);
   }
 }
 
@@ -382,12 +449,10 @@ void displayUpdateTask(void *pvParameters)
     u8g2.print(knob2.getRotation());
 
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
 
-    if (localReceiver)
+    if (!localConnected || (localConnected && localReceiver))
     {
-      u8g2.setCursor(110, 10);
-      u8g2.print("Rx");
-
       u8g2.setCursor(60, 20);
       u8g2.print("Vol: ");
       u8g2.print(knob3.getRotation());
@@ -404,7 +469,14 @@ void displayUpdateTask(void *pvParameters)
       u8g2.setCursor(2, 30);
       u8g2.print(soundGen.getCurrentNotes().c_str());
     }
-    else
+    
+    if (localConnected && localReceiver)
+    {
+      u8g2.setCursor(110, 10);
+      u8g2.print("Rx");
+    }
+
+    if (localConnected && !localReceiver)
     {
       u8g2.setCursor(110, 10);
       u8g2.print("Tx");
@@ -430,27 +502,111 @@ void CAN_TX_Task(void *pvParameters)
 
 void decodeTask(void *pvParameters)
 {
+  uint8_t RX_Message[8] = {0};
   while (1)
   {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
+
+    xSemaphoreTake(connectionMutex, portMAX_DELAY);
+
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
-    if (localReceiver)
+    uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
+    uint8_t action = RX_Message[0];
+
+    if (action == 0x50)
     {
-      uint8_t action = RX_Message[0];
-      uint8_t octave = RX_Message[1];
-      uint8_t note = RX_Message[2];
-      if (action == 0x50)
+      //Key pressed
+      if (localReceiver)
       {
-        // Press
+        uint8_t octave = RX_Message[1];
+        uint8_t note = RX_Message[2];
         soundGen.addKey(octave, note);
       }
-      else
+    }
+    else if (action == 0x52)
+    {
+      //Key released
+      if (localReceiver)
       {
-        // Release
-        // soundGen.removeKey(octave, note);
+        uint8_t octave = RX_Message[1];
+        uint8_t note = RX_Message[2];
         soundGen.echoKey(octave, note);
       }
     }
+    else if (action == 0x43)
+    {
+      //Connect
+      //Check to see if synth is already connected
+      if (localConnected)
+      {
+        //Synth is already connected
+        //Check to see if there is a new east connection
+        uint8_t localEastConnection = __atomic_load_n(&eastConnection, __ATOMIC_RELAXED);
+        if (!localEastConnection)
+        {
+          setRow(6);
+          delayMicroseconds(3);
+          int8_t east = digitalRead(C3_PIN);
+
+          if (!east)
+          {
+            //New east connection found
+            __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
+
+            //Return a master message, with the required octave
+              uint8_t TX_Message[8];
+              TX_Message[0] = 'M';
+              TX_Message[1] = knob2.getRotation() + 1;
+              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+          }
+        }
+      }
+      else
+      {
+        //Synth is unconnected - update octave, Tx/Rx, connected
+        int8_t octave = RX_Message[1];
+        knob2.setRotation(octave);
+        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+        __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
+      
+        //Return a "slave success" message
+        uint8_t TX_Message[8];
+        TX_Message[0] = 'S';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+      }
+    }
+    else if (action == 0x53)
+    {
+      //Slave
+      //Slave successfully connected - this synth is receiver
+      if (!localConnected)
+      {
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+      }
+      
+    }
+    else if (action == 0x4d)
+    {
+      //Master
+      //Synth should be transmitter, update octave
+      if (!localConnected)
+      {
+        int8_t octave = RX_Message[1];
+        knob2.setRotation(octave);
+        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+      }
+      
+    }
+    else if (action == 0x54)
+    {
+      //Transmitter
+      //Synth should become a transmitter
+      __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
+    }
+
+    xSemaphoreGive(connectionMutex);
   }
 }
 
@@ -461,6 +617,7 @@ void setup()
   // put your setup code here, to run once:
 
   keyArrayMutex = xSemaphoreCreateMutex();
+  connectionMutex = xSemaphoreCreateMutex();
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3, 3);
 
   TIM_TypeDef *Instance = TIM1;
@@ -483,6 +640,15 @@ void setup()
       NULL,             /* Parameter passed into the task */
       2,                /* Task priority */
       &joystickHandle); /* Pointer to store the task handle */
+
+  TaskHandle_t autoMultiSynthHandle = NULL;
+  xTaskCreate(
+      autoMultiSynthTask,     /* Function that implements the task */
+      "autoMultiSynth",       /* Text name for the task */
+      64,               /* Stack size in words, not bytes */
+      NULL,             /* Parameter passed into the task */
+      1,                /* Task priority */
+      &autoMultiSynthHandle); /* Pointer to store the task handle */
 
   TaskHandle_t displayUpdateTaskHandle = NULL;
   xTaskCreate(
