@@ -5,8 +5,6 @@
 #include "knob.h"
 #include "main.h"
 
-extern SemaphoreHandle_t notesMutex;
-
 SoundGenerator::SoundGenerator()
 /*
  * Constructor for the SoundGenerator class
@@ -20,6 +18,8 @@ SoundGenerator::SoundGenerator()
     voices[i].octave = 0;
     voices[i].phaseAcc = 0;
     voices[i].intensityRightShift = 24;
+    voices[i].cyclesPerHalfPeriod = 0;
+    voices[i].squareWaveCount = 0;
   }
 }
 
@@ -34,7 +34,7 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
  */
 {
   // Register the key press in the first available voice
-  xSemaphoreTake(notesMutex, portMAX_DELAY);
+  taskENTER_CRITICAL();
 
   for (uint8_t i = 0; i < 12; i++)
   {
@@ -45,12 +45,22 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
       voices[i].note = note;
       voices[i].octave = octave;
       voices[i].intensityRightShift = 24;
+      voices[i].cyclesPerHalfPeriod = 25;
+
+      if (octave > 4)
+      {
+        voices[i].cyclesPerHalfPeriod = sampleFrequency / ((frequencies[note] << (octave - 4)) * 2);
+      }
+      else
+      {
+        voices[i].cyclesPerHalfPeriod = sampleFrequency / ((frequencies[note] >> (4 - octave)) * 2);
+      }
 
       break;
     }
   }
 
-  xSemaphoreGive(notesMutex);
+  taskEXIT_CRITICAL();
 }
 
 void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
@@ -63,6 +73,8 @@ void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
  *
  */
 {
+  taskENTER_CRITICAL();
+
   for (uint8_t i = 0; i < 12; i++)
   {
     if ((voices[i].status != 0) && voices[i].octave == octave && voices[i].note == note)
@@ -72,6 +84,8 @@ void SoundGenerator::echoKey(uint8_t octave, uint8_t note)
       // break;
     }
   }
+
+  taskEXIT_CRITICAL();
 }
 
 void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
@@ -85,7 +99,7 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
  */
 {
   // Remove the first instance of a key press from the voices
-  xSemaphoreTake(notesMutex, portMAX_DELAY);
+  taskENTER_CRITICAL();
 
   for (uint8_t i = 0; i < 12; i++)
   {
@@ -96,11 +110,12 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
       voices[i].octave = 0;
       voices[i].phaseAcc = 0;
       voices[i].lifeTime = 0;
+      voices[i].cyclesPerHalfPeriod = 0;
       break;
     }
   }
 
-  xSemaphoreGive(notesMutex);
+  taskEXIT_CRITICAL();
 }
 
 int32_t SoundGenerator::getVout()
@@ -207,6 +222,7 @@ uint32_t SoundGenerator::getGlobalLifeTime()
 {
   return __atomic_load_n(&globalLifetime, __ATOMIC_RELAXED);
 }
+
 void SoundGenerator::setGlobalLifeTime(uint16_t lifeTime)
 /*
  * Atomically stores the selected globalLifeTime
@@ -216,6 +232,7 @@ void SoundGenerator::setGlobalLifeTime(uint16_t lifeTime)
 {
   __atomic_store_n(&globalLifetime, (lifeTime * 22000), __ATOMIC_RELAXED);
 }
+
 void SoundGenerator::sawtooth(uint8_t voiceIndx)
 /*
  * Produces a sawtooth Vout for a specific note related to a specific voice
@@ -241,19 +258,6 @@ void SoundGenerator::sawtooth(uint8_t voiceIndx)
   // Creating note shift using joystick
   int32_t shift = getShift(currentVoiceStepSize);
   voices[voiceIndx].phaseAcc += shift;
-}
-
-int32_t getShift(int32_t currentVoiceStepSize)
-/*
- * Gets shift caused by movement in joystick x axis, applies shift to the current step size.
- * Note: function only gets called from a the interupt function sampleISR(), and therefore global variables can be accessed with no worry about synchronisation erros
- *
- * :return: shifted step size.
- */
-{
-  extern Joystick joystick;
-
-  return currentVoiceStepSize + (-(joystick.x - 532) * 10000);
 }
 
 void SoundGenerator::sine(uint8_t voiceIndx)
@@ -301,6 +305,26 @@ void SoundGenerator::square(uint8_t voiceIndx)
  * :return: Vout for that specific voice that needs shifting and volume adjustment
  */
 {
+
+  static int32_t count = 0;
+  extern Joystick joystick;
+
+  if (voices[voiceIndx].phaseAcc == 0)
+  {
+    voices[voiceIndx].phaseAcc = 2147483647;
+  }
+
+  int32_t shift = voices[voiceIndx].cyclesPerHalfPeriod + ((joystick.getX() / 100) - 5);
+
+  if (voices[voiceIndx].squareWaveCount == shift)
+  {
+    voices[voiceIndx].phaseAcc = voices[voiceIndx].phaseAcc * -1;
+    voices[voiceIndx].squareWaveCount = 0;
+  }
+  else
+  {
+    voices[voiceIndx].squareWaveCount += 1;
+  }
 }
 void SoundGenerator::triangular(uint8_t voiceIndx)
 /*
@@ -338,6 +362,19 @@ void SoundGenerator::triangular(uint8_t voiceIndx)
   voices[voiceIndx].phaseAcc += (upOrDown * shift);
 }
 
+int32_t getShift(int32_t currentVoiceStepSize)
+/*
+ * Gets shift caused by movement in joystick x axis, applies shift to the current step size.
+ * Note: function only gets called from a the interupt function sampleISR(), and therefore global variables can be accessed with no worry about synchronisation erros
+ *
+ * :return: shifted step size.
+ */
+{
+  extern Joystick joystick;
+
+  return currentVoiceStepSize + (-(joystick.getX() - 532) * 10000);
+}
+
 std::string SoundGenerator::getCurrentNotes()
 /*
  * Gets the names of the current notes being played
@@ -346,18 +383,18 @@ std::string SoundGenerator::getCurrentNotes()
  */
 {
   std::string notesStr = "";
-  
-  xSemaphoreTake(notesMutex, portMAX_DELAY);
+
+  taskENTER_CRITICAL();
 
   for (uint8_t i = 0; i < 12; i++)
   {
-    if(voices[i].status == 2)
+    if (voices[i].status == 2)
     {
       notesStr += notes[voices[i].note] + std::to_string(voices[i].octave) + " ";
     }
   }
 
-  xSemaphoreGive(notesMutex);
+  taskEXIT_CRITICAL();
 
   return notesStr;
 }

@@ -15,7 +15,6 @@ const std::string waveType[] = {"Saw", "Sin", "Sqr", "Tri"};
 SemaphoreHandle_t keyArrayMutex;
 SemaphoreHandle_t connectionMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
-SemaphoreHandle_t notesMutex;
 
 // CAN network
 QueueHandle_t msgInQ;
@@ -618,8 +617,11 @@ void setup()
   // put your setup code here, to run once:
 
   keyArrayMutex = xSemaphoreCreateMutex();
+<<<<<<< HEAD
   connectionMutex = xSemaphoreCreateMutex();
   notesMutex = xSemaphoreCreateMutex();
+=======
+>>>>>>> master
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3, 3);
 
   TIM_TypeDef *Instance = TIM1;
