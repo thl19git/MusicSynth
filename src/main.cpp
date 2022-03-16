@@ -201,60 +201,55 @@ void scanKeysTask(void *pvParameters)
 
     xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
 
-    
-    uint8_t octave = knob2.getRotation();
-    for (uint8_t i = 0; i < 3; i++)
+    if (localReceiver)
     {
-      uint8_t keys = localKeyArray[i];
-      uint8_t oldKeys = keyArray[i];
-      for (uint8_t j = 0; j < 4; j++)
+      uint8_t octave = knob2.getRotation();
+      for (uint8_t i = 0; i < 3; i++)
       {
-        uint8_t mask = 1 << j;
-        if ((keys & mask) ^ (oldKeys & mask))
+        uint8_t keys = localKeyArray[i];
+        uint8_t oldKeys = keyArray[i];
+        for (uint8_t j = 0; j < 4; j++)
         {
-          if (keys & mask)
+          uint8_t mask = 1 << j;
+          if ((keys & mask) ^ (oldKeys & mask))
           {
-            // Key has been released
-            Serial.println("Key released");
-            if (localReceiver)
+            if (keys & mask)
             {
-              // soundGen.removeKey(octave, i * 4 + j);
-              soundGen.echoKey(octave, i * 4 + j);
-              Serial.println("Stuff is wrong");
+              // Key has been released
+              if (localReceiver)
+              {
+                // soundGen.removeKey(octave, i * 4 + j);
+                soundGen.echoKey(octave, i * 4 + j);
+              }
+              else
+              {
+                uint8_t TX_Message[8];
+                TX_Message[0] = 'R';
+                TX_Message[1] = knob2.getRotation();
+                TX_Message[2] = i * 4 + j;
+                xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+              }
             }
             else
             {
-              uint8_t TX_Message[8];
-              TX_Message[0] = 'R';
-              TX_Message[1] = knob2.getRotation();
-              TX_Message[2] = i * 4 + j;
-              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-              Serial.println("Sent a message");
-            }
-          }
-          else
-          {
-            // Key has been pressed
-            Serial.println("Key pressed");
-            if (localReceiver)
-            {
-              soundGen.addKey(octave, i * 4 + j);
-              Serial.println("Stuff is wrong");
-            }
-            else
-            {
-              uint8_t TX_Message[8];
-              TX_Message[0] = 'P';
-              TX_Message[1] = knob2.getRotation();
-              TX_Message[2] = i * 4 + j;
-              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-              Serial.println("Sent a message");
+              // Key has been pressed
+              if (localReceiver)
+              {
+                soundGen.addKey(octave, i * 4 + j);
+              }
+              else
+              {
+                uint8_t TX_Message[8];
+                TX_Message[0] = 'P';
+                TX_Message[1] = knob2.getRotation();
+                TX_Message[2] = i * 4 + j;
+                xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+              }
             }
           }
         }
       }
     }
-    
 
     xSemaphoreGive(keyArrayMutex);
 
@@ -329,79 +324,62 @@ void autoMultiSynthTask(void *pvParameters)
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
 
     uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
-    if (!localConnected)
+    if (localConnected)
     {
-      //Check if there is a new east connection
-      setRow(6);
-      delayMicroseconds(3);
-      int8_t east = digitalRead(C3_PIN);
-      int8_t localEastConnection = __atomic_load_n(&eastConnection, __ATOMIC_RELAXED);
-      if (!east && !localEastConnection)
-      {
-        //New east connection
-        uint8_t TX_Message[8];
-        TX_Message[0] = 'E';
-        TX_Message[1] = knob2.getRotation() + 1;
-        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-        __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
-      }
-
-      //Check if there is a new west connection
+      //Check to see if the synth has been disconnected
+      //Select the fifth row, 3rd column for West Detect
       setRow(5);
       delayMicroseconds(3);
       int8_t west = digitalRead(C3_PIN);
-      int8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
-      if (!west && !localWestConnection)
+
+      //Select the sixth row, 3rd column for East Detect
+      setRow(6);
+      delayMicroseconds(3);
+      int8_t east = digitalRead(C3_PIN);
+
+      if (east)
       {
-        //New east connection
-        uint8_t TX_Message[8];
-        TX_Message[0] = 'W';
-        TX_Message[1] = knob2.getRotation() - 1;
-        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-        __atomic_store_n(&westConnection, 1, __ATOMIC_RELAXED);
+        //No east synth
+        __atomic_store_n(&eastConnection, 0, __ATOMIC_RELAXED);
       }
+      if (west)
+      {
+        //No west synth
+        __atomic_store_n(&westConnection, 0, __ATOMIC_RELAXED);
+      }
+      if (east && west)
+      {
+        //Synth is disconnected
+        __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
+      }
+      
     }
     else
     {
-      bool connectedEast = false;
-      bool connectedWest = false;
-      
-      //If connected to the east, update
-      int8_t localEastConnection = __atomic_load_n(&eastConnection, __ATOMIC_RELAXED);
-      if (localEastConnection)
-      {
-        connectedEast = true;
-        setRow(6);
-        delayMicroseconds(3);
-        int8_t east = digitalRead(C3_PIN);
-        if (east)
-        {
-          //East connection has been disconnected
-          connectedEast = false;
-          __atomic_store_n(&eastConnection, 0, __ATOMIC_RELAXED);
-        }
-      }
+      //Check if the west is connected
+      uint8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
 
-      //If connected to the west, update
-      int8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
-      if (localWestConnection)
+      if(!localWestConnection)
       {
-        connectedWest = true;
+        //West previously unconnected
+        //Select the fifth row, 3rd column for West Detect
         setRow(5);
         delayMicroseconds(3);
         int8_t west = digitalRead(C3_PIN);
-        if (west)
+
+        if (!west)
         {
-          //East connection has been disconnected
-          connectedWest = false;
-          __atomic_store_n(&westConnection, 0, __ATOMIC_RELAXED);
+          //New connection to the west identified
+          //Transmit connection message with octave - 1
+          uint8_t TX_Message[8];
+          TX_Message[0] = 'C';
+          TX_Message[1] = knob2.getRotation() - 1;
+          xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+          __atomic_store_n(&westConnection, 1, __ATOMIC_RELAXED);
         }
       }
-
-      if (!connectedEast && !connectedWest)
-      {
-        __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
-      }
+      
     }
   }
 }
@@ -539,7 +517,6 @@ void decodeTask(void *pvParameters)
   while (1)
   {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
-    Serial.println("Recieved a message");
     uint8_t localReceiver = __atomic_load_n(&receiver, __ATOMIC_RELAXED);
     uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
     uint8_t action = RX_Message[0];
@@ -564,82 +541,47 @@ void decodeTask(void *pvParameters)
         soundGen.echoKey(octave, note);
       }
     }
-    else if (action == 0x45)
+    else if (action == 0x43)
     {
-      //East connection -> therefore check west
-      uint8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
-      if (!localWestConnection)
+      //Connect
+      //Check to see if synth is already connected
+      if (localConnected)
       {
-        //Previously no west connection, check for new one
-        setRow(5);
-        delayMicroseconds(3);
-        int8_t west = digitalRead(C3_PIN);
-
-        if (!west)
+        //Synth is already connected
+        //Check to see if there is a new east connection
+        uint8_t localEastConnection = __atomic_load_n(&eastConnection, __ATOMIC_RELAXED);
+        if (!localEastConnection)
         {
-          //New west connection found
-          __atomic_store_n(&westConnection, 1, __ATOMIC_RELAXED);
-          if (localConnected)
+          setRow(6);
+          delayMicroseconds(3);
+          int8_t east = digitalRead(C3_PIN);
+
+          if (!east)
           {
-            //Already connected, return master response
-            uint8_t TX_Message[8];
-            TX_Message[0] = 'M';
-            TX_Message[1] = knob2.getRotation() - 1;
-            xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-          }
-          else
-          {
-            //Previously unconnected, return slave response
-            int8_t octave = RX_Message[1];
-            knob2.setRotation(octave);
-            __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
-            __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
-          
-            //Return a "slave success" message
-            uint8_t TX_Message[8];
-            TX_Message[0] = 'S';
-            xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+            //New east connection found
+            __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
+
+            //Return a master message, with the required octave
+              uint8_t TX_Message[8];
+              TX_Message[0] = 'M';
+              TX_Message[1] = knob2.getRotation() + 1;
+              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
           }
         }
       }
-    }
-    else if (action == 0x57)
-    {
-      //West connection -> therefore check east
-      uint8_t localEastConnection = __atomic_load_n(&eastConnection, __ATOMIC_RELAXED);
-      if (!localEastConnection)
+      else
       {
-        //Previously no east connection, check for new one
-        setRow(6);
-        delayMicroseconds(3);
-        int8_t east = digitalRead(C3_PIN);
-
-        if (!east)
-        {
-          //New east connection found
-          __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
-          if (localConnected)
-          {
-            //Already connected, return master response
-            uint8_t TX_Message[8];
-            TX_Message[0] = 'M';
-            TX_Message[1] = knob2.getRotation() + 1;
-            xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-          }
-          else
-          {
-            //Previously unconnected, return slave response
-            int8_t octave = RX_Message[1];
-            knob2.setRotation(octave);
-            __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
-            __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
-          
-            //Return a "slave success" message
-            uint8_t TX_Message[8];
-            TX_Message[0] = 'S';
-            xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
-          }
-        }
+        //Synth is unconnected - update octave, Tx/Rx, connected
+        int8_t octave = RX_Message[1];
+        knob2.setRotation(octave);
+        __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
+        __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
+      
+        //Return a "slave success" message
+        uint8_t TX_Message[8];
+        TX_Message[0] = 'S';
+        xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
       }
     }
     else if (action == 0x53)
