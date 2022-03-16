@@ -617,11 +617,7 @@ void setup()
   // put your setup code here, to run once:
 
   keyArrayMutex = xSemaphoreCreateMutex();
-<<<<<<< HEAD
   connectionMutex = xSemaphoreCreateMutex();
-  notesMutex = xSemaphoreCreateMutex();
-=======
->>>>>>> master
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3, 3);
 
   TIM_TypeDef *Instance = TIM1;
