@@ -19,7 +19,8 @@ SoundGenerator::SoundGenerator()
     voices[i].phaseAcc = 0;
     voices[i].intensityRightShift = 24;
     voices[i].cyclesPerHalfPeriod = 0;
-    voices[i].squareWaveCount = 0;
+    voices[i].waveCount = 0;
+    voices[i].fOverfs = 0;
   }
 }
 
@@ -45,17 +46,17 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
       voices[i].note = note;
       voices[i].octave = octave;
       voices[i].intensityRightShift = 24;
-      voices[i].cyclesPerHalfPeriod = 25;
 
       if (octave > 4)
       {
         voices[i].cyclesPerHalfPeriod = sampleFrequency / ((frequencies[note] << (octave - 4)) * 2);
+        voices[i].fOverfs = (frequencies[note] << (octave - 4)) / 22;
       }
       else
       {
         voices[i].cyclesPerHalfPeriod = sampleFrequency / ((frequencies[note] >> (4 - octave)) * 2);
+        voices[i].fOverfs = (frequencies[note] >> (4 - octave)) / 22;
       }
-
       break;
     }
   }
@@ -111,6 +112,7 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
       voices[i].phaseAcc = 0;
       voices[i].lifeTime = 0;
       voices[i].cyclesPerHalfPeriod = 0;
+      voices[i].fOverfs = 0;
       break;
     }
   }
@@ -269,31 +271,24 @@ void SoundGenerator::sine(uint8_t voiceIndx)
  * :return: Vout for that specific voice that needs shifting and volume adjustment
  */
 {
-  extern int8_t noteIndx;
-  /////// TO DO: very broken, needs fixing and speeding up of computation ///////
-  /*
-  static uint8_t time = 0;
-  static int32_t phaseAcc = 0;
-  time += 1;
-  int32_t x;
-  if (noteIndx != 0)
+  extern Joystick joystick;
+  // int32_t amplitude = 2147483647; // to be tuned
+
+  // int32_t shift = voices[voiceIndx].cyclesPerHalfPeriod + ((joystick.getX() / 100) - 5);
+
+  float x = voices[voiceIndx].waveCount * voices[voiceIndx].fOverfs;
+
+  voices[voiceIndx].phaseAcc = AsinXLookUpTable(x);
+  // Serial.println(voices[voiceIndx].fOverfs);
+
+  if (voices[voiceIndx].waveCount >= voices[voiceIndx].cyclesPerHalfPeriod * 2)
   {
-    x = 2 * PI * frequencies[noteIndx] * time;
+    voices[voiceIndx].waveCount = 0;
   }
   else
   {
-    return 0;
+    voices[voiceIndx].waveCount += 1;
   }
-  x = x / 22;
-
-  // int32_t sinx = x - (pow(x, 3) / 6) + (pow(x, 5) / 120); // - (x ^ 7 / 5040);
-
-  // phaseAcc += stepSizes[noteIndx] * sin(x);
-
-  int32_t Vout = sin(x) * 100000; // phaseAcc >> 24;
-  // Serial.println(x);
-  return Vout;
-  */
 }
 
 void SoundGenerator::square(uint8_t voiceIndx)
@@ -306,7 +301,6 @@ void SoundGenerator::square(uint8_t voiceIndx)
  */
 {
 
-  static int32_t count = 0;
   extern Joystick joystick;
 
   if (voices[voiceIndx].phaseAcc == 0)
@@ -316,14 +310,14 @@ void SoundGenerator::square(uint8_t voiceIndx)
 
   int32_t shift = voices[voiceIndx].cyclesPerHalfPeriod + ((joystick.getX() / 100) - 5);
 
-  if (voices[voiceIndx].squareWaveCount == shift)
+  if (voices[voiceIndx].waveCount == shift)
   {
     voices[voiceIndx].phaseAcc = voices[voiceIndx].phaseAcc * -1;
-    voices[voiceIndx].squareWaveCount = 0;
+    voices[voiceIndx].waveCount = 0;
   }
   else
   {
-    voices[voiceIndx].squareWaveCount += 1;
+    voices[voiceIndx].waveCount += 1;
   }
 }
 void SoundGenerator::triangular(uint8_t voiceIndx)
@@ -397,4 +391,169 @@ std::string SoundGenerator::getCurrentNotes()
   taskEXIT_CRITICAL();
 
   return notesStr;
+}
+
+int32_t AsinXLookUpTable(uint16_t x)
+/*
+ * A lookup table for sin() that is much less computationally expensive than the sin() function
+ *
+ * :param x: input to lookup in the form of (f/fs * cycleCount)
+ *
+ * returns the amplitude applied sin result equivilent to Asin((2*PI)*(f/fs)*cycleCount)
+ */
+{
+  int32_t amplitude = 214748360; // to be tuned
+  if (isBetween(0, 30, x))
+  {
+    return amplitude * 10;
+  }
+  else if (isBetween(30, 60, x))
+  {
+    return amplitude * 29;
+  }
+  else if (isBetween(60, 90, x))
+  {
+    return amplitude * 47;
+  }
+  else if (isBetween(90, 130, x))
+  {
+    return amplitude * 63;
+  }
+  else if (isBetween(130, 160, x))
+  {
+    return amplitude * 77;
+  }
+  else if (isBetween(160, 190, x))
+  {
+    return amplitude * 88;
+  }
+  else if (isBetween(190, 220, x))
+  {
+    return amplitude * 95;
+  }
+  else if (isBetween(220, 250, x))
+  {
+    return amplitude * 99;
+  }
+  else if (isBetween(250, 280, x))
+  {
+    return amplitude * 99;
+  }
+  else if (isBetween(280, 310, x))
+  {
+    return amplitude * 95;
+  }
+  else if (isBetween(310, 340, x))
+  {
+    return amplitude * 88;
+  }
+  else if (isBetween(340, 380, x))
+  {
+    return amplitude * 77;
+  }
+  else if (isBetween(380, 410, x))
+  {
+    return amplitude * 63;
+  }
+  else if (isBetween(410, 440, x))
+  {
+    return amplitude * 47;
+  }
+  else if (isBetween(440, 470, x))
+  {
+    return amplitude * 29;
+  }
+  else if (isBetween(470, 500, x))
+  {
+    return amplitude * 10;
+  }
+  else if (isBetween(500, 530, x))
+  {
+    return amplitude * -10;
+  }
+  else if (isBetween(530, 560, x))
+  {
+    return amplitude * -29;
+  }
+  else if (isBetween(560, 590, x))
+  {
+    return amplitude * -47;
+  }
+  else if (isBetween(590, 630, x))
+  {
+    return amplitude * -63;
+  }
+  else if (isBetween(630, 660, x))
+  {
+    return amplitude * -77;
+  }
+  else if (isBetween(660, 690, x))
+  {
+    return amplitude * -88;
+  }
+  else if (isBetween(690, 720, x))
+  {
+    return amplitude * -95;
+  }
+  else if (isBetween(720, 750, x))
+  {
+    return amplitude * -99;
+  }
+  else if (isBetween(750, 780, x))
+  {
+    return amplitude * -99;
+  }
+  else if (isBetween(780, 810, x))
+  {
+    return amplitude * -95;
+  }
+  else if (isBetween(810, 840, x))
+  {
+    return amplitude * -88;
+  }
+  else if (isBetween(840, 880, x))
+  {
+    return amplitude * -77;
+  }
+  else if (isBetween(880, 910, x))
+  {
+    return amplitude * -63;
+  }
+  else if (isBetween(910, 940, x))
+  {
+    return amplitude * -47;
+  }
+  else if (isBetween(940, 970, x))
+  {
+    return amplitude * -29;
+  }
+  else if (isBetween(970, 1000, x))
+  {
+    return amplitude * -10;
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+bool isBetween(float lowBound, float upBound, float x)
+/*
+ * Function used in AsinXLookUpTable() to check if x is: lowBound <= x < upBound
+ *
+ * :param lowBound: lower bound that x can be greater than or equal to
+ *
+ * :param upBound: upper bound that x can be less than
+ *
+ * :return: bool value to wether x is between value or not (true is it is)
+ */
+{
+  if ((x >= lowBound) & (x < upBound))
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
 }
