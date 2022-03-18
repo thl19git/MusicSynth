@@ -195,7 +195,14 @@ int32_t SoundGenerator::getVout()
       }
       else
       {
-        Vout += voices[i].phaseAcc >> 24;
+        if (wf == 3)
+        {
+          Vout += voices[i].phaseAcc >> 21;
+        }
+        else
+        {
+          Vout += voices[i].phaseAcc >> 24;
+        }
       }
     }
   }
