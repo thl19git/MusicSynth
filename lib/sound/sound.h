@@ -23,7 +23,10 @@ struct Voice
 
   // Square
   uint16_t cyclesPerHalfPeriod;
-  uint8_t squareWaveCount;
+  uint8_t waveCount;
+
+  // sine
+  uint16_t fOverfs;
 
   // Echo variables
   uint32_t lifeTime;           // echo life time
@@ -162,6 +165,26 @@ int32_t getShift(int32_t currentVoiceStepSize);
  * Note: function only gets called from a the interupt function sampleISR(), and therefore global variables can be accessed with no worry about synchronisation erros
  *
  * :return: shifted step size.
+ */
+
+int32_t AsinXLookUpTable(uint16_t x);
+/*
+ * A lookup table for sin() that is much less computationally expensive than the sin() function
+ *
+ * :param x: input to lookup in the form of (f/fs * cycleCount)
+ *
+ * returns the amplitude applied sin result equivilent to Asin((2*PI)*(f/fs)*cycleCount)
+ */
+
+bool isBetween(float lowBound, float upBound, float x);
+/*
+ * Function used in AsinXLookUpTable() to check if x is: lowBound <= x < upBound
+ *
+ * :param lowBound: lower bound that x can be greater than or equal to
+ *
+ * :param upBound: upper bound that x can be less than
+ *
+ * :return: bool value to wether x is between value or not (true is it is)
  */
 
 #endif
