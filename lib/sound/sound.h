@@ -20,6 +20,7 @@ struct Voice
 
   // Sawtooth
   int32_t phaseAcc;
+  int32_t stepSize;
 
   // Square
   uint16_t cyclesPerHalfPeriod;
@@ -27,6 +28,9 @@ struct Voice
 
   // sine
   uint16_t fOverfs;
+
+  // triangle
+  int8_t upOrDown;
 
   // Echo variables
   uint32_t lifeTime;           // echo life time

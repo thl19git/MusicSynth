@@ -21,6 +21,8 @@ SoundGenerator::SoundGenerator()
     voices[i].cyclesPerHalfPeriod = 0;
     voices[i].waveCount = 0;
     voices[i].fOverfs = 0;
+    voices[i].stepSize = 0;
+    voices[i].upOrDown = 0;
   }
 }
 
@@ -46,6 +48,8 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
       voices[i].note = note;
       voices[i].octave = octave;
       voices[i].intensityRightShift = 24;
+      voices[i].upOrDown = 1;
+      voices[i].waveCount = 0;
 
       if (octave > 4)
       {
@@ -57,6 +61,7 @@ void SoundGenerator::addKey(uint8_t octave, uint8_t note)
         voices[i].cyclesPerHalfPeriod = sampleFrequency / ((frequencies[note] >> (4 - octave)) * 2);
         voices[i].fOverfs = (frequencies[note] >> (4 - octave)) / 22;
       }
+      voices[i].stepSize = 4294967 * voices[i].fOverfs;
       break;
     }
   }
@@ -113,6 +118,9 @@ void SoundGenerator::removeKey(uint8_t octave, uint8_t note)
       voices[i].lifeTime = 0;
       voices[i].cyclesPerHalfPeriod = 0;
       voices[i].fOverfs = 0;
+      voices[i].stepSize = 0;
+      voices[i].upOrDown = 1;
+      voices[i].waveCount = 0;
       break;
     }
   }
@@ -187,7 +195,14 @@ int32_t SoundGenerator::getVout()
       }
       else
       {
-        Vout += voices[i].phaseAcc >> 24;
+        if (wf == 3)
+        {
+          Vout += voices[i].phaseAcc >> 21;
+        }
+        else
+        {
+          Vout += voices[i].phaseAcc >> 24;
+        }
       }
     }
   }
@@ -244,22 +259,11 @@ void SoundGenerator::sawtooth(uint8_t voiceIndx)
  * :return: Vout for that specific voice that needs shifting and volume adjustment
  */
 {
-  uint8_t octave = voices[voiceIndx].octave;
-  uint8_t note = voices[voiceIndx].note;
-  int32_t currentVoiceStepSize;
-  if (octave > 4)
-  {
-    // voices[i].phaseAcc += stepSizes[note] << (octave - 4);
-    currentVoiceStepSize = stepSizes[note] << (octave - 4);
-  }
-  else
-  {
-    // voices[i].phaseAcc += stepSizes[note] >> (4 - octave);
-    currentVoiceStepSize = stepSizes[note] >> (4 - octave);
-  }
+
   // Creating note shift using joystick
-  int32_t shift = getShift(currentVoiceStepSize);
+  int32_t shift = getShift(voices[voiceIndx].stepSize);
   voices[voiceIndx].phaseAcc += shift;
+  // Serial.println(voices[voiceIndx].phaseAcc);
 }
 
 void SoundGenerator::sine(uint8_t voiceIndx)
@@ -274,11 +278,11 @@ void SoundGenerator::sine(uint8_t voiceIndx)
   extern Joystick joystick;
   // int32_t amplitude = 2147483647; // to be tuned
 
-  // int32_t shift = voices[voiceIndx].cyclesPerHalfPeriod + ((joystick.getX() / 100) - 5);
+  int32_t shift = voices[voiceIndx].fOverfs + ((joystick.getX() / 100) - 5);
 
-  float x = voices[voiceIndx].waveCount * voices[voiceIndx].fOverfs;
+  float x = voices[voiceIndx].waveCount * shift;
 
-  voices[voiceIndx].phaseAcc = AsinXLookUpTable(x);
+  voices[voiceIndx].phaseAcc = AsinXLookUpTable(x) >> 1;
   // Serial.println(voices[voiceIndx].fOverfs);
 
   if (voices[voiceIndx].waveCount >= voices[voiceIndx].cyclesPerHalfPeriod * 2)
@@ -330,30 +334,26 @@ void SoundGenerator::triangular(uint8_t voiceIndx)
  */
 
 {
-  uint8_t octave = voices[voiceIndx].octave;
-  uint8_t note = voices[voiceIndx].note;
-  int32_t currentVoiceStepSize;
-  if (octave > 4)
+  if (voices[voiceIndx].phaseAcc == 0)
   {
-    currentVoiceStepSize = stepSizes[note] << (octave - 4);
-  }
-  else
-  {
-    currentVoiceStepSize = stepSizes[note] >> (4 - octave);
-  }
-  static int8_t upOrDown = 1;
-
-  if (voices[voiceIndx].phaseAcc >= 200000000)
-  {
-    upOrDown = -1;
-  }
-  else if (voices[voiceIndx].phaseAcc <= -2000000000)
-  {
-    upOrDown = +1;
+    voices[voiceIndx].phaseAcc = -voices[voiceIndx].stepSize * voices[voiceIndx].cyclesPerHalfPeriod / 2;
   }
 
-  int32_t shift = getShift(currentVoiceStepSize);
-  voices[voiceIndx].phaseAcc += (upOrDown * shift);
+  if (voices[voiceIndx].waveCount == voices[voiceIndx].cyclesPerHalfPeriod)
+  {
+    voices[voiceIndx].upOrDown = -1;
+  }
+  else if (voices[voiceIndx].waveCount == 2 * voices[voiceIndx].cyclesPerHalfPeriod)
+  {
+
+    voices[voiceIndx].upOrDown = +1;
+    voices[voiceIndx].waveCount = 0;
+  }
+
+  voices[voiceIndx].waveCount += 1;
+
+  int32_t shift = getShift(voices[voiceIndx].stepSize);
+  voices[voiceIndx].phaseAcc += (voices[voiceIndx].upOrDown * shift);
 }
 
 int32_t getShift(int32_t currentVoiceStepSize)
