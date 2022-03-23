@@ -186,6 +186,12 @@ int32_t SoundGenerator::getVout()
           voices[i].note = 0;
           voices[i].octave = 0;
           voices[i].phaseAcc = 0;
+          voices[i].lifeTime = 0;
+          voices[i].cyclesPerHalfPeriod = 0;
+          voices[i].fOverfs = 0;
+          voices[i].stepSize = 0;
+          voices[i].upOrDown = 1;
+          voices[i].waveCount = 0;
         }
         else
         {
