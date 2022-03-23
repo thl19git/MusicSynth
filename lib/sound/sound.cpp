@@ -261,7 +261,18 @@ void SoundGenerator::sawtooth(uint8_t voiceIndx)
 {
 
   // Creating note shift using joystick
-  int32_t shift = getShift(voices[voiceIndx].stepSize);
+  // int32_t shift = getShift(voices[voiceIndx].stepSize);
+  int32_t stepSize = stepSizes[voices[voiceIndx].note];
+  if (voices[voiceIndx].octave > 4)
+  {
+    stepSize = stepSize << voices[voiceIndx].octave - 4;
+  }
+  else
+  {
+    stepSize = stepSize >> 4 - voices[voiceIndx].octave;
+
+  }
+  int32_t shift = getShift(stepSize);
   voices[voiceIndx].phaseAcc += shift;
   // Serial.println(voices[voiceIndx].phaseAcc);
 }
