@@ -41,3 +41,12 @@ The UI displays all of the information the user needs, as shown in the diagram a
 
 ### Default Settings
 The module is configured such that on power-up the volume and octaves are set to non-zero defaults (4 for octave and 8 for volume), reducing the need for initial set-up by the user.
+
+### Unit Testing
+Although not strictly an advanced feature, one thing we did in addition to the core specification was unit testing.
+
+**Joystick testing**: The joystick button should be initialized to 1 by default whilst the joystick positions (x and y coordinates) are initialized to 0, TEST_ASSERT_EQUAL_INT8 is used to compared the results with the ideal reference, the tests were passed successfully. 
+
+**Knob testing**: All possible combinations of inputs for knobs are tested. Since all the inputs should be 1 or 0, the edge case situation ‘inputs are not 0 or 1’ are also tested, the output should be 0. All the tests were passed.
+
+**Sound testing**: The getWaveform and getGlobalLifeTime functions were tested for their initialization values, by default getWaveform returns the waveform id of 0, corresponding to sawtooth wave, (1 for sine, 2 for triangle and 3 for square wave) and the initial value of the global life time should also be 0 since there is no echo at the start; both reference values are set to 0 for this reason and the TEST_ASSERT_EQUAL_INT8 tests were passed successfully.
