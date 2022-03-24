@@ -17,9 +17,13 @@ The **rotation of Knob2** is used for changing the octave, the octave can vary f
 
 ### Different Waveforms
 In order to generate interesting sounds, four types of waveforms are implemented, including sawtooth wave, sine wave, square wave and triangular wave. 
+
 **Sawtooth wave**: The frequency of the note is changed by changing the step size for a phase accumulator.
+
 **Sine wave**: A Look-up table is used for sin() that is much less computationally expensive than the sin() function. Half period of sine wave is divided into intervals, the output is returned based on the corresponding input, and then it is assigned to the phase accumulator.
+
 **Square wave**: The value of the phase accumulator is switched between max and min of int32_t.
+
 **Triangle**: The corresponding step size is added or subtracted to the phase accumulator, and the sign is indicated by an ‘upOrDown’ signal.
 
 ![image](https://user-images.githubusercontent.com/59955474/159999894-b389ab1e-a7ca-47c6-9e78-61258ded5eb9.png)
