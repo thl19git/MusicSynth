@@ -6,4 +6,4 @@ This is the report for the Music Synthesiser by Creme de la Creme.
 |---------|------|
 |Section 1|file 1|
 |Section 2|file 2|
-|Section 3|file 3|
+|Data dependancies and synchronisation|[dependancies](docs/dependancies.md)|
