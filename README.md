@@ -4,6 +4,7 @@ This is the report for the Music Synthesiser by Creme de la Creme.
 
 | Section | File |
 |---------|------|
-|Section 1|file 1|
-|Section 2|file 2|
-|Data dependencies and synchronisation|[dependencies](docs/dependencies.md)|
+|Tasks - threads and interrupts|[Tasks](docs/tasks.md)|
+|Critical Instant Analysis|[Analysis](docs/analysis.md)|
+|Advanced Features|[Features](docs/features.md)|
+|Data dependencies and synchronisation|[Dependencies](docs/dependencies.md)|
