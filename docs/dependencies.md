@@ -4,6 +4,8 @@
 
 ![dependency_graph_small](https://user-images.githubusercontent.com/59955474/160001696-7baf4ab5-a81f-4f37-ab8c-d9374698742c.png)
 
+All cycles in the graph are a result of mutexes and critical sections, and as there are no blocking function calls within any sections flagged as critical or protected by mutexes, there is no risk of deadlock.
+
 ### Global Variables
 The following is a list of the global variables in main.cpp, along with the tasks that access and modify them, and the steps taken to ensure synchronisation.
 
