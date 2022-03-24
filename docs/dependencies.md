@@ -2,7 +2,8 @@
 
 ### Dependency Graph
 
-![dependency_graph_small](https://user-images.githubusercontent.com/59955474/160001696-7baf4ab5-a81f-4f37-ab8c-d9374698742c.png)
+![updated_dependency](https://user-images.githubusercontent.com/59955474/160008730-d2d5c183-f546-4ca5-91a1-cfe912131300.png)
+
 
 All cycles in the graph are a result of mutexes and critical sections, and as there are no blocking function calls within any sections flagged as critical or protected by mutexes, there is no risk of deadlock.
 
