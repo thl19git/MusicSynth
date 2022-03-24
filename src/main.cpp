@@ -322,18 +322,18 @@ void autoMultiSynthTask(void *pvParameters)
 
     xSemaphoreTake(connectionMutex, portMAX_DELAY);
 
-    //Check if the west is connected
+    // Check if the west is connected
     uint8_t localWestConnection = __atomic_load_n(&westConnection, __ATOMIC_RELAXED);
 
-    //Select the fifth row, 3rd column for West Detect
+    // Select the fifth row, 3rd column for West Detect
     setRow(5);
     delayMicroseconds(3);
     int8_t west = digitalRead(C3_PIN);
 
-    if(!localWestConnection && !west)
+    if (!localWestConnection && !west)
     {
-      //New connection to the west identified
-      //Transmit connection message with octave - 1
+      // New connection to the west identified
+      // Transmit connection message with octave - 1
       uint8_t TX_Message[8];
       TX_Message[0] = 'C';
       TX_Message[1] = knob2.getRotation() - 1;
@@ -344,29 +344,28 @@ void autoMultiSynthTask(void *pvParameters)
     uint8_t localConnected = __atomic_load_n(&connected, __ATOMIC_RELAXED);
     if (localConnected)
     {
-      //Check to see if the synth has been disconnected
-      //Select the sixth row, 3rd column for East Detect
+      // Check to see if the synth has been disconnected
+      // Select the sixth row, 3rd column for East Detect
       setRow(6);
       delayMicroseconds(3);
       int8_t east = digitalRead(C3_PIN);
 
       if (east)
       {
-        //No east synth
+        // No east synth
         __atomic_store_n(&eastConnection, 0, __ATOMIC_RELAXED);
       }
       if (west)
       {
-        //No west synth
+        // No west synth
         __atomic_store_n(&westConnection, 0, __ATOMIC_RELAXED);
       }
       if (east && west)
       {
-        //Synth is disconnected
+        // Synth is disconnected
         __atomic_store_n(&connected, 0, __ATOMIC_RELAXED);
         __atomic_store_n(&receiver, 1, __ATOMIC_RELAXED);
       }
-      
     }
 
     xSemaphoreGive(connectionMutex);
@@ -456,7 +455,7 @@ void displayUpdateTask(void *pvParameters)
       u8g2.setCursor(60, 20);
       u8g2.print("Vol: ");
       u8g2.print(knob3.getRotation());
-      
+
       u8g2.setCursor(42, 10);
       u8g2.print("Wave: ");
       u8g2.print(waveType[soundGen.getWaveform()].c_str());
@@ -469,7 +468,7 @@ void displayUpdateTask(void *pvParameters)
       u8g2.setCursor(2, 30);
       u8g2.print(soundGen.getCurrentNotes().c_str());
     }
-    
+
     if (localConnected && localReceiver)
     {
       u8g2.setCursor(110, 10);
@@ -515,7 +514,7 @@ void decodeTask(void *pvParameters)
 
     if (action == 0x50)
     {
-      //Key pressed
+      // Key pressed
       if (localReceiver)
       {
         uint8_t octave = RX_Message[1];
@@ -525,7 +524,7 @@ void decodeTask(void *pvParameters)
     }
     else if (action == 0x52)
     {
-      //Key released
+      // Key released
       if (localReceiver)
       {
         uint8_t octave = RX_Message[1];
@@ -535,12 +534,12 @@ void decodeTask(void *pvParameters)
     }
     else if (action == 0x43)
     {
-      //Connect
-      //Check to see if synth is already connected
+      // Connect
+      // Check to see if synth is already connected
       if (localConnected)
       {
-        //Synth is already connected
-        //Check to see if there is a new east connection
+        // Synth is already connected
+        // Check to see if there is a new east connection
         uint8_t localEastConnection = __atomic_load_n(&eastConnection, __ATOMIC_RELAXED);
         if (!localEastConnection)
         {
@@ -550,27 +549,27 @@ void decodeTask(void *pvParameters)
 
           if (!east)
           {
-            //New east connection found
+            // New east connection found
             __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
 
-            //Return a master message, with the required octave
-              uint8_t TX_Message[8];
-              TX_Message[0] = 'M';
-              TX_Message[1] = knob2.getRotation() + 1;
-              xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
+            // Return a master message, with the required octave
+            uint8_t TX_Message[8];
+            TX_Message[0] = 'M';
+            TX_Message[1] = knob2.getRotation() + 1;
+            xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
           }
         }
       }
       else
       {
-        //Synth is unconnected - update octave, Tx/Rx, connected
+        // Synth is unconnected - update octave, Tx/Rx, connected
         int8_t octave = RX_Message[1];
         knob2.setRotation(octave);
         __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
         __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
         __atomic_store_n(&eastConnection, 1, __ATOMIC_RELAXED);
-      
-        //Return a "slave success" message
+
+        // Return a "slave success" message
         uint8_t TX_Message[8];
         TX_Message[0] = 'S';
         xQueueSend(msgOutQ, TX_Message, portMAX_DELAY);
@@ -578,18 +577,17 @@ void decodeTask(void *pvParameters)
     }
     else if (action == 0x53)
     {
-      //Slave
-      //Slave successfully connected - this synth is receiver
+      // Slave
+      // Slave successfully connected - this synth is receiver
       if (!localConnected)
       {
         __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
       }
-      
     }
     else if (action == 0x4d)
     {
-      //Master
-      //Synth should be transmitter, update octave
+      // Master
+      // Synth should be transmitter, update octave
       if (!localConnected)
       {
         int8_t octave = RX_Message[1];
@@ -597,12 +595,11 @@ void decodeTask(void *pvParameters)
         __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
         __atomic_store_n(&connected, 1, __ATOMIC_RELAXED);
       }
-      
     }
     else if (action == 0x54)
     {
-      //Transmitter
-      //Synth should become a transmitter
+      // Transmitter
+      // Synth should become a transmitter
       __atomic_store_n(&receiver, 0, __ATOMIC_RELAXED);
     }
 
@@ -629,7 +626,7 @@ void setup()
       "scanKeys",       /* Text name for the task */
       64,               /* Stack size in words, not bytes */
       NULL,             /* Parameter passed into the task */
-      4,                /* Task priority */
+      6,                /* Task priority */
       &scanKeysHandle); /* Pointer to store the task handle */
 
   TaskHandle_t joystickHandle = NULL;
@@ -638,16 +635,16 @@ void setup()
       "joystick",       /* Text name for the task */
       64,               /* Stack size in words, not bytes */
       NULL,             /* Parameter passed into the task */
-      2,                /* Task priority */
+      4,                /* Task priority */
       &joystickHandle); /* Pointer to store the task handle */
 
   TaskHandle_t autoMultiSynthHandle = NULL;
   xTaskCreate(
       autoMultiSynthTask,     /* Function that implements the task */
       "autoMultiSynth",       /* Text name for the task */
-      64,               /* Stack size in words, not bytes */
-      NULL,             /* Parameter passed into the task */
-      1,                /* Task priority */
+      64,                     /* Stack size in words, not bytes */
+      NULL,                   /* Parameter passed into the task */
+      1,                      /* Task priority */
       &autoMultiSynthHandle); /* Pointer to store the task handle */
 
   TaskHandle_t displayUpdateTaskHandle = NULL;
@@ -656,7 +653,7 @@ void setup()
       "displayUpdate",           /* Text name for the task */
       256,                       /* Stack size in words, not bytes */
       NULL,                      /* Parameter passed into the task */
-      1,                         /* Task priority */
+      2,                         /* Task priority */
       &displayUpdateTaskHandle); /* Pointer to store the task handle */
 
   TaskHandle_t decodeTaskHandle = NULL;
@@ -665,7 +662,7 @@ void setup()
       "decode",           /* Text name for the task */
       64,                 /* Stack size in words, not bytes */
       NULL,               /* Parameter passed into the task */
-      3,                  /* Task priority */
+      5,                  /* Task priority */
       &decodeTaskHandle); /* Pointer to store the task handle */
 
   TaskHandle_t CAN_TX_TaskHandle = NULL;
@@ -674,7 +671,7 @@ void setup()
       "CAN_TX",            /* Text name for the task */
       256,                 /* Stack size in words, not bytes */
       NULL,                /* Parameter passed into the task */
-      2,                   /* Task priority */
+      3,                   /* Task priority */
       &CAN_TX_TaskHandle); /* Pointer to store the task handle */
 
   sampleTimer->setOverflow(22000, HERTZ_FORMAT);
@@ -718,7 +715,7 @@ void setup()
 
   CAN_Start();
 
-  //Set the initial volume and octave
+  // Set the initial volume and octave
   knob2.setRotation(4);
   knob3.setRotation(8);
 
