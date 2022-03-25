@@ -51,9 +51,9 @@ Although not strictly an advanced feature, one thing we did in addition to the c
 
 **Sound testing**: The getWaveform and getGlobalLifeTime functions were tested for their initialization values, by default getWaveform returns the waveform id of 0, corresponding to sawtooth wave, (1 for sine, 2 for triangle and 3 for square wave) and the initial value of the global life time should also be 0 since there is no echo at the start; both reference values are set to 0 for this reason and the TEST_ASSERT_EQUAL_INT8 tests were passed successfully.
 
-**User testing** 
+**User testing**: 
 As well as using test scripts, user testing took place. This included general cases, edge cases and heavy computational load cases. 
 
-**Synchronization and thread testing**
+**Synchronization and thread testing**:
 This was done throughout the development process to ensure all timing issues and variable accesses were safe.
 
