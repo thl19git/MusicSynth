@@ -27,3 +27,4 @@
 
 ### Quantification of total CPU usage
 -	From the table above it can be seen that for the worst-case situation there is a 97.62% utilization of the CPU. 
+-	This value is pretty optimal as most of the time CPU is being utilized with small leeway for safety.  
