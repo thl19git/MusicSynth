@@ -139,7 +139,7 @@ void cpyKeyArray(volatile uint32_t localKeyArray[7])
 
 void CAN_RX_ISR(void)
 /*
- * TODO
+ * Receives a message from the CAN bus and places it on the message in queue
  */
 {
   uint8_t RX_MESSAGE_ISR[8];
@@ -150,7 +150,7 @@ void CAN_RX_ISR(void)
 
 void CAN_TX_ISR(void)
 /*
- * TODO
+ * Releases the CAN_TX semaphore, which can then be taken in the CAN_TX_Task
  */
 {
   xSemaphoreGiveFromISR(CAN_TX_Semaphore, NULL);

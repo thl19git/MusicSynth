@@ -27,4 +27,5 @@
 
 ### Quantification of total CPU usage
 -	From the table above it can be seen that for the worst-case situation there is a 97.62% utilization of the CPU. 
--	This value is pretty optimal as most of the time CPU is being utilized with small leeway for safety.  
+-	This value is pretty optimal as most of the time CPU is being utilized with small leeway for safety.
+- This value is also an over-estimate as it is calculated assuming a module is part of a multi-synth set-up, and is acting as both a transmitter and a receiver, something that is not actually possible.
