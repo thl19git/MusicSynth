@@ -1,6 +1,6 @@
 # Analysis
 
-INSERT FINAL TABLE HERE
+![image](https://user-images.githubusercontent.com/59967644/160084519-220a7ae1-7652-41d7-afc0-3706c09ff7f9.png)
 
 ### Notes on execution times
 -	Execution times were manually measured for each task. 
