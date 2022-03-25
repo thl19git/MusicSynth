@@ -21,7 +21,8 @@
 ### Critical instant analysis
 -	From the table above it can be seen that all tasks are executed within the interval of the longest task as:
 
-INSERT FINAL PICTURE HERE
+![image](https://user-images.githubusercontent.com/59967644/160085210-a18923e3-c12f-4087-a0e5-113d7b317203.png)
+
 -	Therefore, with the rate-monotonic scheduling setup as described above, CPU utilization is optimal.
 
 ### Quantification of total CPU usage
